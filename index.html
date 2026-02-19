@@ -3,14 +3,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Teacher Driza Community</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         theme: {
           extend: {
+            fontFamily: {
+              sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            },
             colors: {
               coral: {
                 50: '#fff1f0',
@@ -26,16 +29,55 @@
                 50: '#fdfbf7',
                 100: '#f9f6f2',
                 200: '#f1ece4',
+                300: '#e5ddd1',
               }
+            },
+            boxShadow: {
+              'premium': '0 20px 50px -12px rgba(240, 113, 103, 0.15)',
+              'soft': '0 10px 30px -5px rgba(0, 0, 0, 0.04)',
+              'mobile-nav': '0 -10px 30px -5px rgba(0, 0, 0, 0.05)',
             }
           }
         }
       }
     </script>
     <style>
+        :root {
+            --sat: env(safe-area-inset-top);
+            --sar: env(safe-area-inset-right);
+            --sab: env(safe-area-inset-bottom);
+            --sal: env(safe-area-inset-left);
+        }
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Plus Jakarta Sans', sans-serif;
             background-color: #fdfbf7;
+            color: #030712;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: none;
+            overflow-x: hidden;
+        }
+        .pb-safe { padding-bottom: var(--sab); }
+        .pt-safe { padding-top: var(--sat); }
+        .mb-safe { margin-bottom: var(--sab); }
+        
+        /* Mobile improvements */
+        input, button { font-size: 16px !important; } /* Prevents iOS zoom on input */
+        
+        @media (max-width: 640px) {
+            h1 { font-size: 2.5rem !important; line-height: 1 !important; }
+            .chat-bubble { max-width: 88% !important; }
+        }
+
+        ::selection {
+            background-color: #f07167;
+            color: white;
+        }
+
+        @media (min-width: 1024px) {
+            ::-webkit-scrollbar { width: 6px; }
+            ::-webkit-scrollbar-track { background: transparent; }
+            ::-webkit-scrollbar-thumb { background: #e5ddd1; border-radius: 10px; }
+            ::-webkit-scrollbar-thumb:hover { background: #f07167; }
         }
     </style>
 <script type="importmap">
@@ -49,7 +91,7 @@
 }
 </script>
 </head>
-<body>
+<body class="pt-safe">
     <div id="root"></div>
 </body>
 </html>

@@ -10,34 +10,31 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onLogout }) => {
   const menuItems = [
-    { id: 'public', label: 'Public Chat', icon: Icons.Users },
-    { id: 'private', label: 'Private Teacher', icon: Icons.MessageSquare },
+    { id: 'public', label: 'Community', icon: Icons.Users },
+    { id: 'private', label: 'My Teacher', icon: Icons.MessageSquare },
     { id: 'billing', label: 'Subscription', icon: Icons.CreditCard },
-    { id: 'settings', label: 'Account Settings', icon: Icons.Settings },
+    { id: 'settings', label: 'Settings', icon: Icons.Settings },
   ];
 
   return (
-    <aside className="w-72 bg-white border-r border-pearl-200 flex flex-col h-full hidden md:flex">
-      <div className="p-8">
-        <div className="flex flex-col gap-2 mb-10 items-start">
-          <div className="text-coral-500 mb-2">
-            <Icons.Sun />
-          </div>
-          <h1 className="text-xl font-black text-coral-500 leading-tight tracking-tighter uppercase">
-            Teacher Driza<br/>
-            Community
+    <aside className="w-80 bg-white border-r border-pearl-200 flex flex-col h-full hidden lg:flex relative z-10">
+      <div className="p-10">
+        <div className="flex items-center gap-3 mb-12">
+          <div className="text-coral-500 scale-125"><Icons.Sun /></div>
+          <h1 className="text-xl font-black text-gray-950 tracking-tighter uppercase leading-none">
+            Teacher<br/>Driza
           </h1>
         </div>
 
-        <nav className="space-y-2">
+        <nav className="space-y-3">
           {menuItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-4 px-5 py-4 text-sm font-bold rounded-2xl transition-all duration-300 ${
+              className={`w-full flex items-center gap-4 px-6 py-4.5 text-sm font-extrabold rounded-2xl transition-all ${
                 activeTab === item.id
-                  ? 'bg-coral-500 text-white shadow-xl shadow-coral-500/20 translate-x-2'
-                  : 'text-gray-600 hover:bg-pearl-50 hover:text-gray-950'
+                  ? 'bg-coral-500 text-white shadow-premium translate-x-1'
+                  : 'text-gray-400 hover:text-gray-950 hover:bg-pearl-50'
               }`}
             >
               <item.icon />
@@ -47,10 +44,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onLogout }) 
         </nav>
       </div>
 
-      <div className="mt-auto p-8 border-t border-pearl-100">
+      <div className="mt-auto p-10">
         <button 
           onClick={onLogout}
-          className="w-full flex items-center gap-4 px-5 py-4 text-sm font-bold text-gray-500 hover:text-coral-600 hover:bg-coral-50 rounded-2xl transition-all duration-300"
+          className="w-full flex items-center gap-4 px-6 py-4 text-sm font-bold text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
         >
           <Icons.LogOut />
           Sign Out

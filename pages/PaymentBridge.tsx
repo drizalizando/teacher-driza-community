@@ -1,0 +1,69 @@
+
+import React, { useState, useEffect } from 'react';
+import { Icons } from '../constants';
+
+interface PaymentBridgeProps {
+  onPaymentConfirmed: () => void;
+}
+
+const PaymentBridge: React.FC<PaymentBridgeProps> = ({ onPaymentConfirmed }) => {
+  const [status, setStatus] = useState<'redirecting' | 'pending' | 'success'>('redirecting');
+
+  useEffect(() => {
+    // Simulando o fluxo: 
+    // 1. Redireciona para o checkout
+    // 2. Aguarda "pagamento" (aqui simulado com timeout)
+    const timer = setTimeout(() => {
+      setStatus('pending');
+      const confirmationTimer = setTimeout(() => {
+        setStatus('success');
+        const finalTimer = setTimeout(onPaymentConfirmed, 2000);
+        return () => clearTimeout(finalTimer);
+      }, 3000);
+      return () => clearTimeout(confirmationTimer);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [onPaymentConfirmed]);
+
+  return (
+    <div className="min-h-screen bg-pearl-50 flex items-center justify-center p-6 text-center">
+      <div className="max-w-md w-full bg-white rounded-[3rem] p-12 shadow-2xl border border-pearl-200 animate-in zoom-in duration-500">
+        {status === 'redirecting' && (
+          <div className="space-y-6">
+            <div className="w-20 h-20 bg-coral-50 rounded-full flex items-center justify-center mx-auto">
+              <div className="w-10 h-10 border-4 border-coral-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <h2 className="text-2xl font-black tracking-tighter uppercase">Redirecionando...</h2>
+            <p className="text-gray-500 font-medium">Estamos te levando para o ambiente seguro de pagamento do Asaas.</p>
+          </div>
+        )}
+
+        {status === 'pending' && (
+          <div className="space-y-6">
+            <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto">
+              <Icons.CreditCard />
+            </div>
+            <h2 className="text-2xl font-black tracking-tighter uppercase">Aguardando Pagamento</h2>
+            <p className="text-gray-500 font-medium">Finalize sua assinatura no checkout. Assim que o Asaas confirmar, liberaremos seu acesso automaticamente.</p>
+            <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 animate-pulse">
+               <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Verificando status em tempo real...</p>
+            </div>
+          </div>
+        )}
+
+        {status === 'success' && (
+          <div className="space-y-6 animate-in fade-in duration-500">
+            <div className="w-20 h-20 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto">
+              <Icons.Check />
+            </div>
+            <h2 className="text-2xl font-black tracking-tighter uppercase">Pagamento Confirmado!</h2>
+            <p className="text-gray-500 font-medium">Seja bem-vindo à comunidade. Vamos configurar seu perfil para começar.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default PaymentBridge;

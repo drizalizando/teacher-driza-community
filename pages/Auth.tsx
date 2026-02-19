@@ -5,27 +5,28 @@ import { MOCK_USER, Icons } from '../constants';
 
 interface AuthProps {
   onLogin: (user: User) => void;
+  onSignup: (email: string) => void;
 }
 
-const Auth: React.FC<AuthProps> = ({ onLogin }) => {
+const Auth: React.FC<AuthProps> = ({ onLogin, onSignup }) => {
   const [isLogin, setIsLogin] = useState(true);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    cardName: '',
-    cardNumber: '',
-    expiry: '',
-    cvv: '',
+    confirmPassword: '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLogin && !agreedToTerms) {
-      alert("Please agree to the Terms of Use and Subscription Policy to continue.");
-      return;
+    if (!isLogin) {
+      if (formData.password !== formData.confirmPassword) {
+        alert("Passwords do not match.");
+        return;
+      }
+      onSignup(formData.email);
+    } else {
+      onLogin(MOCK_USER);
     }
-    onLogin(MOCK_USER);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,55 +35,55 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen bg-pearl-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-10 flex flex-col items-center">
-          <div className="text-coral-500 mb-4 animate-spin-slow">
+      <div className="max-w-md w-full animate-in fade-in zoom-in duration-500">
+        <div className="text-center mb-8 flex flex-col items-center px-4">
+          <div className="text-coral-500 mb-4 animate-bounce-slow">
             <Icons.Sun />
           </div>
-          <h1 className="text-3xl font-black text-coral-500 tracking-tighter uppercase">
-            Teacher Driza Community
+          <h1 className="text-3xl sm:text-4xl font-black text-gray-950 tracking-tighter uppercase leading-none">
+            Teacher Driza
           </h1>
-          <p className="text-gray-500 mt-2 font-bold text-sm tracking-wide">
-            Your alive community to master English
+          <p className="text-gray-400 mt-2 font-bold text-xs sm:text-sm tracking-wide">
+            {isLogin ? "Welcome back, scholar!" : "Your journey starts here."}
           </p>
         </div>
 
-        <div className="bg-white rounded-[2rem] shadow-2xl shadow-coral-900/5 p-8 border border-pearl-200">
-          <div className="flex gap-4 mb-8">
+        <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-premium p-6 sm:p-10 border border-pearl-200">
+          <div className="flex gap-2 mb-8 bg-pearl-50 p-1.5 rounded-2xl">
             <button 
               onClick={() => setIsLogin(true)}
-              className={`flex-1 pb-3 text-sm font-black uppercase tracking-widest border-b-4 transition-all ${isLogin ? 'border-coral-500 text-coral-500' : 'border-transparent text-gray-300'}`}
+              className={`flex-1 py-3 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${isLogin ? 'bg-white text-gray-950 shadow-sm' : 'text-gray-400'}`}
             >
-              Log In
+              Sign In
             </button>
             <button 
               onClick={() => setIsLogin(false)}
-              className={`flex-1 pb-3 text-sm font-black uppercase tracking-widest border-b-4 transition-all ${!isLogin ? 'border-coral-500 text-coral-500' : 'border-transparent text-gray-300'}`}
+              className={`flex-1 py-3 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${!isLogin ? 'bg-white text-gray-950 shadow-sm' : 'text-gray-400'}`}
             >
-              Sign Up
+              Join Us
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Email Address</label>
+              <label className="block text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Email Address</label>
               <input 
                 name="email"
                 type="email" 
                 required
-                className="w-full px-5 py-4 bg-pearl-50 border border-pearl-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-coral-500/5 focus:border-coral-500 text-gray-900 font-bold transition-all placeholder:text-gray-300"
-                placeholder="you@example.com"
+                className="w-full px-4 sm:px-5 py-3.5 sm:py-4 bg-white border-2 border-pearl-100 rounded-xl sm:rounded-2xl focus:border-coral-500 outline-none text-gray-900 font-bold transition-all placeholder:text-gray-200"
+                placeholder="name@email.com"
                 value={formData.email}
                 onChange={handleInputChange}
               />
             </div>
             <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Password</label>
+              <label className="block text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Password</label>
               <input 
                 name="password"
                 type="password" 
                 required
-                className="w-full px-5 py-4 bg-pearl-50 border border-pearl-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-coral-500/5 focus:border-coral-500 text-gray-900 font-bold transition-all placeholder:text-gray-300"
+                className="w-full px-4 sm:px-5 py-3.5 sm:py-4 bg-white border-2 border-pearl-100 rounded-xl sm:rounded-2xl focus:border-coral-500 outline-none text-gray-900 font-bold transition-all placeholder:text-gray-200"
                 placeholder="••••••••"
                 value={formData.password}
                 onChange={handleInputChange}
@@ -90,104 +91,39 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             </div>
 
             {!isLogin && (
-              <div className="pt-4 border-t border-pearl-100 space-y-4">
-                <div className="bg-coral-50 p-4 rounded-2xl border border-coral-100">
-                  <p className="text-[11px] text-coral-700 font-black uppercase tracking-wider leading-relaxed text-center">
-                    ✨ 2 days free trial. No charge today.
-                  </p>
-                </div>
-                
-                <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Cardholder Name</label>
-                  <input 
-                    name="cardName"
-                    type="text" 
-                    required
-                    className="w-full px-5 py-4 bg-pearl-50 border border-pearl-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-coral-500/5 focus:border-coral-500 text-gray-900 font-bold"
-                    placeholder="NAME ON CARD"
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Card Number</label>
-                  <input 
-                    name="cardNumber"
-                    type="text" 
-                    required
-                    className="w-full px-5 py-4 bg-pearl-50 border border-pearl-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-coral-500/5 focus:border-coral-500 text-gray-900 font-bold"
-                    placeholder="0000 0000 0000 0000"
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Expiry</label>
-                    <input 
-                      name="expiry"
-                      type="text" 
-                      required
-                      className="w-full px-5 py-4 bg-pearl-50 border border-pearl-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-coral-500/5 focus:border-coral-500 text-gray-900 font-bold"
-                      placeholder="MM/YY"
-                      onChange={handleInputChange}
-                    />
-                  </div>
-                  <div className="w-28">
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">CVV</label>
-                    <input 
-                      name="cvv"
-                      type="text" 
-                      required
-                      className="w-full px-5 py-4 bg-pearl-50 border border-pearl-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-coral-500/5 focus:border-coral-500 text-gray-900 font-bold"
-                      placeholder="123"
-                      onChange={handleInputChange}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 pt-2">
-                  <div className="flex items-center h-5">
-                    <input
-                      id="terms"
-                      type="checkbox"
-                      required
-                      checked={agreedToTerms}
-                      onChange={(e) => setAgreedToTerms(e.target.checked)}
-                      className="h-4 w-4 rounded border-pearl-300 text-coral-500 focus:ring-coral-500 cursor-pointer"
-                    />
-                  </div>
-                  <label htmlFor="terms" className="text-[11px] text-gray-500 font-medium leading-tight cursor-pointer">
-                    By creating an account, you agree to the <span className="text-coral-500 font-bold underline">Terms of Use</span> and <span className="text-coral-500 font-bold underline">Subscription Policy</span>.
-                  </label>
-                </div>
+              <div className="animate-in fade-in slide-in-from-top-2">
+                <label className="block text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Confirm Password</label>
+                <input 
+                  name="confirmPassword"
+                  type="password" 
+                  required
+                  className="w-full px-4 sm:px-5 py-3.5 sm:py-4 bg-white border-2 border-pearl-100 rounded-xl sm:rounded-2xl focus:border-coral-500 outline-none text-gray-900 font-bold transition-all placeholder:text-gray-200"
+                  placeholder="••••••••"
+                  value={formData.confirmPassword}
+                  onChange={handleInputChange}
+                />
               </div>
             )}
 
             <button 
               type="submit"
-              disabled={!isLogin && !agreedToTerms}
-              className={`w-full py-5 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl transition-all transform active:scale-[0.98] mt-6 ${
-                (!isLogin && !agreedToTerms) 
-                  ? 'bg-gray-300 shadow-none cursor-not-allowed' 
-                  : 'bg-coral-500 hover:bg-coral-600 shadow-coral-500/20'
-              }`}
+              className="w-full py-4 sm:py-5 bg-coral-500 text-white font-black uppercase tracking-widest text-[10px] sm:text-[11px] rounded-xl sm:rounded-2xl shadow-xl shadow-coral-500/20 active:scale-95 transition-all mt-4"
             >
-              {isLogin ? 'Enter Community' : 'Start My Trial'}
+              {isLogin ? 'Enter Hub' : 'Start My Trial'}
             </button>
             
-            <p className="text-center text-[9px] text-gray-400 mt-4 font-black uppercase tracking-[0.2em]">
-              Secure Billing by Asaas • 100% Encrypted
+            <p className="text-center text-[8px] text-gray-300 font-black uppercase tracking-widest leading-relaxed mt-4">
+              Secure payments powered by Asaas.
             </p>
           </form>
         </div>
       </div>
       <style>{`
-        @keyframes spin-slow {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+        @keyframes bounce-slow {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
         }
-        .animate-spin-slow {
-          animation: spin-slow 12s linear infinite;
-        }
+        .animate-bounce-slow { animation: bounce-slow 3s ease-in-out infinite; }
       `}</style>
     </div>
   );

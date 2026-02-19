@@ -2,6 +2,7 @@
   "name": "Teacher Driza Community",
   "description": "A premium English learning community powered by Teacher Driza AI, featuring public and private chats, and trial-based subscriptions.",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "camera"
   ]
 }
