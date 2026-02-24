@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { User, Message } from './types';
 import { DRIZA_BOT_ID, MOCK_USER, Icons } from './constants';
 import { getDrizaResponse, transcribeAudio, textToSpeech } from './services/geminiService';
@@ -28,39 +28,6 @@ const App: React.FC = () => {
   const [privateMessages, setPrivateMessages] = useState<Message[]>([]);
 
   useEffect(() => {
-    // Immersion default messages
-    setPublicMessages([
-      {
-        id: 'welcome-1',
-        senderId: 'system',
-        senderName: 'System',
-        content: 'Welcome to the English Practice Hub! Remember: Try to use English always.',
-        timestamp: new Date(),
-        type: 'system'
-      },
-      {
-        id: 'driza-daily',
-        senderId: DRIZA_BOT_ID,
-        senderName: 'Teacher Driza',
-        content: "Morning everyone! 👋 Ready for today's challenge? Post one sentence about your lunch in English!",
-        timestamp: new Date(),
-        isAi: true,
-        type: 'teacher'
-      }
-    ]);
-
-    setPrivateMessages([
-      {
-        id: 'priv-1',
-        senderId: DRIZA_BOT_ID,
-        senderName: 'Teacher Driza',
-        content: "Hi there! I'm your private mentor. Feel free to send me any questions or voice messages in English. I'm here to help you shine!",
-        timestamp: new Date(),
-        isAi: true,
-        type: 'teacher'
-      }
-    ]);
-
     const initApp = async () => {
       const currentUser = await api.auth.getCurrentUser();
       if (currentUser) {
@@ -71,6 +38,77 @@ const App: React.FC = () => {
     };
     initApp();
   }, []);
+
+  // Fetch history and subscribe when in dashboard
+  useEffect(() => {
+    if (step !== 'dashboard' || !user) return;
+
+    // Public messages
+    api.chat.getHistory('public').then(setPublicMessages);
+    const unsubPublic = api.chat.subscribeToMessages('public', (msg) => {
+      setPublicMessages(prev => {
+        if (prev.find(m => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+    });
+
+    // Private messages
+    api.chat.getHistory('private', user.id).then(setPrivateMessages);
+    const unsubPrivate = api.chat.subscribeToMessages('private', (msg) => {
+      setPrivateMessages(prev => {
+        if (prev.find(m => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+    }, user.id);
+
+    return () => {
+      unsubPublic();
+      unsubPrivate();
+    };
+  }, [step, user?.id]);
+
+  const handleSendMessage = async (text: string, channel: 'public' | 'private') => {
+    if (!user) return;
+
+    const newMessage: Message = {
+      id: Date.now().toString(), // Supabase will override this with uuid
+      senderId: user.id,
+      senderName: user.name,
+      content: text,
+      timestamp: new Date(),
+      type: 'user'
+    };
+
+    // If it's the private channel, we handle AI response
+    if (channel === 'private') {
+      await api.chat.sendMessage(newMessage, 'private', user.id);
+
+      // Trigger AI Response
+      setIsAiTyping(true);
+      try {
+        const history = [...privateMessages, newMessage];
+        const response = await getDrizaResponse(text, true, history);
+
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          senderId: DRIZA_BOT_ID,
+          senderName: 'Teacher Driza',
+          content: response.text,
+          timestamp: new Date(),
+          isAi: true,
+          type: 'teacher'
+        };
+
+        await api.chat.sendMessage(aiMessage, 'private', user.id);
+      } catch (error) {
+        console.error("AI Response error:", error);
+      } finally {
+        setIsAiTyping(false);
+      }
+    } else {
+      await api.chat.sendMessage(newMessage, 'public');
+    }
+  };
 
   const handleOnboardingComplete = async (profileData: Partial<User>) => {
     if (!user) return;
@@ -95,7 +133,7 @@ const App: React.FC = () => {
         {showTour && <AppTour onComplete={() => setShowTour(false)} />}
         
         {/* Responsive Navigation */}
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => { api.auth.signOut(); setStep('landing'); }} />
+        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={async () => { await api.auth.signOut(); setStep('landing'); }} />
         <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
         <main className="flex-1 flex flex-col h-full min-h-0 relative overflow-hidden pb-16 lg:pb-0">
@@ -112,8 +150,8 @@ const App: React.FC = () => {
                </div>
             ) : (
               <>
-                {activeTab === 'public' && <ChatWindow title="Community Feed" subtitle="Public Practice" messages={publicMessages} onSendMessage={(txt) => setPublicMessages(p => [...p, { id: Date.now().toString(), senderId: user.id, senderName: user.name, content: txt, timestamp: new Date(), type: 'user' }])} user={user} isAiTyping={isAiTyping} />}
-                {activeTab === 'private' && <ChatWindow title="My Teacher" subtitle="Private Guidance" messages={privateMessages} onSendMessage={(txt) => setPrivateMessages(p => [...p, { id: Date.now().toString(), senderId: user.id, senderName: user.name, content: txt, timestamp: new Date(), type: 'user' }])} user={user} isAiTyping={isAiTyping} showMic={true} />}
+                {activeTab === 'public' && <ChatWindow title="Community Feed" subtitle="Public Practice" messages={publicMessages} onSendMessage={(txt) => handleSendMessage(txt, 'public')} user={user} isAiTyping={isAiTyping} />}
+                {activeTab === 'private' && <ChatWindow title="My Teacher" subtitle="Private Guidance" messages={privateMessages} onSendMessage={(txt) => handleSendMessage(txt, 'private')} user={user} isAiTyping={isAiTyping} showMic={true} />}
                 {activeTab === 'billing' && <Billing user={user} />}
                 {activeTab === 'settings' && <div className="flex-1 flex items-center justify-center py-10">
                   <div className="max-w-md w-full p-10 bg-white rounded-[2.5rem] border border-pearl-200 shadow-soft text-center">
@@ -122,7 +160,7 @@ const App: React.FC = () => {
                     </div>
                     <h2 className="text-xl font-black text-gray-900">{user.name}</h2>
                     <p className="text-xs font-black text-coral-500 uppercase tracking-widest">{user.handle}</p>
-                    <button onClick={() => { api.auth.signOut(); setStep('landing'); }} className="mt-8 w-full py-4 text-red-500 font-black text-[10px] uppercase tracking-widest bg-red-50 rounded-2xl">Sign Out</button>
+                    <button onClick={async () => { await api.auth.signOut(); setStep('landing'); }} className="mt-8 w-full py-4 text-red-500 font-black text-[10px] uppercase tracking-widest bg-red-50 rounded-2xl">Sign Out</button>
                   </div>
                 </div>}
               </>
