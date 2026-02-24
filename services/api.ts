@@ -27,7 +27,6 @@ export const api = {
       if (error) throw error;
       if (!data.user) return null;
 
-      // We don't return the user yet as they might need to verify email or we need to wait for trigger to create profile
       const user = await api.auth.getCurrentUser();
       return user;
     },
@@ -43,7 +42,6 @@ export const api = {
         .single();
 
       if (profileError || !profile) {
-        // Fallback for new user without profile yet
         return {
           id: user.id,
           email: user.email || '',
@@ -83,12 +81,22 @@ export const api = {
   },
 
   billing: {
-    createAsaasSubscription: async (email: string): Promise<{ checkoutUrl: string }> => {
-      return { checkoutUrl: 'https://asaas.com/c/checkout-stub' };
-    },
-    
-    checkPaymentStatus: async (userId: string): Promise<boolean> => {
-      return true;
+    /**
+     * Recomenda-se usar Supabase Edge Functions para lidar com o Asaas,
+     * pois as chaves de API do Asaas não devem ficar no front-end.
+     */
+    getCheckoutUrl: async (planId: string): Promise<string> => {
+      try {
+        const { data, error } = await supabase.functions.invoke('asaas-checkout', {
+          body: { planId }
+        });
+        if (error) throw error;
+        return data.checkoutUrl;
+      } catch (err) {
+        console.error('Erro ao buscar URL do Asaas:', err);
+        // Fallback para link de pagamento fixo ou stub se a function não existir ainda
+        return 'https://asaas.com/c/vossa-conta-exemplo';
+      }
     },
 
     syncSubscription: async (userId: string): Promise<UserSubscription> => {
@@ -110,11 +118,12 @@ export const api = {
         isAccessBlocked: status === 'blocked' || status === 'past_due'
       };
     },
-    getCheckoutUrl: async (planId: string): Promise<string> => {
-      return 'https://asaas.com/c/portal-stub';
-    },
+
     cancelSubscription: async (userId: string): Promise<boolean> => {
-      return true;
+      const { error } = await supabase.functions.invoke('asaas-cancel', {
+        body: { userId }
+      });
+      return !error;
     }
   },
 
