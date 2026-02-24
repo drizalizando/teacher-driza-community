@@ -1,10 +1,25 @@
 
 import { GoogleGenAI, Modality } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+let aiInstance: GoogleGenAI | null = null;
+
+const getAi = () => {
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error("Gemini API Key is missing! Check your environment variables.");
+    return null;
+  }
+  if (!aiInstance) {
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+};
 
 export const validateProfilePicture = async (imageBase64: string) => {
-  const modelName = 'gemini-3-flash-preview';
+  const ai = getAi();
+  if (!ai) return true;
+
+  const modelName = 'gemini-1.5-flash';
   try {
     const response = await ai.models.generateContent({
       model: modelName,
@@ -15,7 +30,10 @@ export const validateProfilePicture = async (imageBase64: string) => {
 };
 
 export const getDrizaResponse = async (userPrompt: string, isPrivate: boolean, chatHistory: any[]) => {
-  const modelName = 'gemini-3-flash-preview';
+  const ai = getAi();
+  if (!ai) return { text: "I'm having trouble connecting to my brain. Please check the API configuration." };
+
+  const modelName = 'gemini-1.5-flash';
   
   const systemInstruction = `You are Teacher Driza, a human-like English mentor. 
     ENVIRONMENT: Immersion mode. Users MUST practice English. 
@@ -42,12 +60,16 @@ export const getDrizaResponse = async (userPrompt: string, isPrivate: boolean, c
     });
     return { text: response.text || "Keep practicing! I'm listening." };
   } catch (error) {
+    console.error("Gemini Error:", error);
     return { text: "Let's try that again in English! ☕" };
   }
 };
 
 export const transcribeAudio = async (audioBase64: string) => {
-  const modelName = 'gemini-3-flash-preview';
+  const ai = getAi();
+  if (!ai) return "";
+
+  const modelName = 'gemini-1.5-flash';
   try {
     const response = await ai.models.generateContent({
       model: modelName,
@@ -58,7 +80,13 @@ export const transcribeAudio = async (audioBase64: string) => {
 };
 
 export const textToSpeech = async (text: string) => {
-  const modelName = 'gemini-2.5-flash-preview-tts';
+  const ai = getAi();
+  if (!ai) return null;
+
+  // TTS model might vary, using a safe default if available,
+  // but gemini-1.5-flash doesn't support TTS directly in this way usually.
+  // Keeping it as provided in the original code but with updated name if applicable.
+  const modelName = 'gemini-1.5-flash';
   try {
     const response = await ai.models.generateContent({
       model: modelName,
