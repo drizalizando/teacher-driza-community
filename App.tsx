@@ -121,14 +121,22 @@ const App: React.FC = () => {
 
   const isAccessBlocked = user?.subscription.isAccessBlocked;
 
-  // Renderers
-  if (step === 'landing') return <Landing onGetStarted={() => setStep('auth')} onLogin={() => setStep('auth')} />;
-  if (step === 'auth' && !user) return <Auth onLogin={(u) => { setUser(u); setStep(u.name ? 'dashboard' : 'onboarding'); }} onSignup={() => setStep('payment')} />;
-  if (step === 'payment') return <PaymentBridge onPaymentConfirmed={() => setStep('onboarding')} />;
-  if (step === 'onboarding' && user) return <Onboarding user={user} onComplete={handleOnboardingComplete} />;
+  // Unified Routing Logic
+  // 1. Unauthenticated views
+  if (!user) {
+    if (step === 'auth') return <Auth onLogin={(u) => { setUser(u); setStep((u.name && u.handle) ? 'dashboard' : 'onboarding'); }} onSignup={() => setStep('payment')} />;
+    if (step === 'payment') return <PaymentBridge onPaymentConfirmed={() => setStep('onboarding')} />;
+    return <Landing onGetStarted={() => setStep('auth')} onLogin={() => setStep('auth')} />;
+  }
 
-  if (step === 'dashboard' && user) {
-    return (
+  // 2. Authenticated views
+  // Onboarding check
+  if (step === 'onboarding' || !user.name || !user.handle) {
+    return <Onboarding user={user} onComplete={handleOnboardingComplete} />;
+  }
+
+  // Default to Dashboard for authenticated users with profile
+  return (
       <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-pearl-50">
         {showTour && <AppTour onComplete={() => setShowTour(false)} />}
         
@@ -168,10 +176,7 @@ const App: React.FC = () => {
           </div>
         </main>
       </div>
-    );
-  }
-
-  return null;
+  );
 };
 
 export default App;
