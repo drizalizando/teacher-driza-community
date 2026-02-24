@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { User } from '../types';
-import { MOCK_USER, Icons } from '../constants';
+import { Icons } from '../constants';
+import { api } from '../services/api';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -10,22 +11,40 @@ interface AuthProps {
 
 const Auth: React.FC<AuthProps> = ({ onLogin, onSignup }) => {
   const [isLogin, setIsLogin] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     confirmPassword: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLogin) {
-      if (formData.password !== formData.confirmPassword) {
-        alert("Passwords do not match.");
-        return;
+    setIsLoading(true);
+    try {
+      if (!isLogin) {
+        if (formData.password !== formData.confirmPassword) {
+          alert("Passwords do not match.");
+          return;
+        }
+        const user = await api.auth.signUp(formData.email, formData.password);
+        if (user) {
+          onLogin(user);
+        } else {
+          // Signup successful but might need email verification
+          alert("Check your email for confirmation!");
+          onSignup(formData.email);
+        }
+      } else {
+        const user = await api.auth.signIn(formData.email, formData.password);
+        if (user) {
+          onLogin(user);
+        }
       }
-      onSignup(formData.email);
-    } else {
-      onLogin(MOCK_USER);
+    } catch (error: any) {
+      alert(error.message || "An error occurred during authentication.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -107,9 +126,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onSignup }) => {
 
             <button 
               type="submit"
-              className="w-full py-4 sm:py-5 bg-coral-500 text-white font-black uppercase tracking-widest text-[10px] sm:text-[11px] rounded-xl sm:rounded-2xl shadow-xl shadow-coral-500/20 active:scale-95 transition-all mt-4"
+              disabled={isLoading}
+              className="w-full py-4 sm:py-5 bg-coral-500 text-white font-black uppercase tracking-widest text-[10px] sm:text-[11px] rounded-xl sm:rounded-2xl shadow-xl shadow-coral-500/20 active:scale-95 transition-all mt-4 disabled:opacity-50"
             >
-              {isLogin ? 'Enter Hub' : 'Start My Trial'}
+              {isLoading ? 'Processing...' : (isLogin ? 'Enter Hub' : 'Start My Trial')}
             </button>
             
             <p className="text-center text-[8px] text-gray-300 font-black uppercase tracking-widest leading-relaxed mt-4">

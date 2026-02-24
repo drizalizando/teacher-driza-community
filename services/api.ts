@@ -1,29 +1,84 @@
 
 import { User, Message, UserSubscription, SubscriptionStatus } from '../types';
-import { MOCK_USER } from '../constants';
+import { MOCK_USER, DRIZA_BOT_ID } from '../constants';
+import { supabase } from './supabase';
 
 export const api = {
   auth: {
+    signIn: async (email: string, password: string): Promise<User | null> => {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      if (!data.user) return null;
+
+      const user = await api.auth.getCurrentUser();
+      return user;
+    },
+
+    signUp: async (email: string, password: string): Promise<User | null> => {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            email: email,
+          }
+        }
+      });
+      if (error) throw error;
+      if (!data.user) return null;
+
+      // We don't return the user yet as they might need to verify email or we need to wait for trigger to create profile
+      const user = await api.auth.getCurrentUser();
+      return user;
+    },
+
     getCurrentUser: async (): Promise<User | null> => {
-      const saved = localStorage.getItem('teacher_driza_user');
-      if (saved) {
-        const user = JSON.parse(saved);
-        // Refresh subscription state
-        const sub = await api.billing.syncSubscription(user.id);
-        return { ...user, subscription: sub };
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) return null;
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        // Fallback for new user without profile yet
+        return {
+          id: user.id,
+          email: user.email || '',
+          name: '',
+          handle: '',
+          subscription: await api.billing.syncSubscription(user.id)
+        };
       }
-      return null;
+
+      return {
+        id: profile.id,
+        email: profile.email,
+        name: profile.name,
+        handle: profile.handle,
+        avatarUrl: profile.avatar_url,
+        subscription: await api.billing.syncSubscription(user.id)
+      };
     },
+
     signOut: async (): Promise<void> => {
-      localStorage.removeItem('teacher_driza_user');
+      await supabase.auth.signOut();
     },
+
     updateProfile: async (userId: string, data: Partial<User>): Promise<void> => {
-      const saved = localStorage.getItem('teacher_driza_user');
-      if (saved) {
-        const user = JSON.parse(saved);
-        const updatedUser = { ...user, ...data };
-        localStorage.setItem('teacher_driza_user', JSON.stringify(updatedUser));
-      }
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: userId,
+          name: data.name,
+          handle: data.handle,
+          avatar_url: data.avatarUrl,
+          email: data.email,
+        });
+
+      if (error) throw error;
     }
   },
 
@@ -37,16 +92,22 @@ export const api = {
     },
 
     syncSubscription: async (userId: string): Promise<UserSubscription> => {
-      const saved = localStorage.getItem('teacher_driza_user');
-      const baseStatus = saved ? JSON.parse(saved).subscription.status : MOCK_USER.subscription.status;
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_status, trial_end_date')
+        .eq('id', userId)
+        .single();
+
+      const status = (profile?.subscription_status || 'trialing') as SubscriptionStatus;
+      const trialEndDate = profile?.trial_end_date || MOCK_USER.subscription.trialEndDate;
       
       return {
-        status: baseStatus as SubscriptionStatus,
-        trialEndDate: MOCK_USER.subscription.trialEndDate,
+        status: status,
+        trialEndDate: trialEndDate,
         nextBillingDate: null,
-        isTrialActive: baseStatus === 'trialing',
-        isSubscriptionActive: baseStatus === 'active' || baseStatus === 'trialing',
-        isAccessBlocked: baseStatus === 'blocked' || baseStatus === 'past_due'
+        isTrialActive: status === 'trialing',
+        isSubscriptionActive: status === 'active' || status === 'trialing',
+        isAccessBlocked: status === 'blocked' || status === 'past_due'
       };
     },
     getCheckoutUrl: async (planId: string): Promise<string> => {
@@ -59,13 +120,73 @@ export const api = {
 
   chat: {
     getHistory: async (channel: 'public' | 'private', userId?: string): Promise<Message[]> => {
-      return [];
+      let query = supabase
+        .from('messages')
+        .select('*')
+        .eq('channel', channel)
+        .order('created_at', { ascending: true });
+
+      if (channel === 'private' && userId) {
+        query = query.eq('user_id', userId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      return (data || []).map(m => ({
+        id: m.id,
+        senderId: m.sender_id,
+        senderName: m.sender_name,
+        content: m.content,
+        timestamp: new Date(m.created_at),
+        isAi: m.is_ai,
+        type: m.type as any
+      }));
     },
-    sendMessage: async (message: Message): Promise<void> => {
-      console.log('Message sync with DB:', message);
+
+    sendMessage: async (message: Message, channel: 'public' | 'private', userId?: string): Promise<void> => {
+      const { error } = await supabase
+        .from('messages')
+        .insert({
+          sender_id: message.senderId,
+          sender_name: message.senderName,
+          content: message.content,
+          channel: channel,
+          user_id: userId || (channel === 'private' ? message.senderId : null),
+          is_ai: message.isAi || false,
+          type: message.type
+        });
+
+      if (error) throw error;
     },
-    subscribeToMessages: (channel: 'public' | 'private', onNewMessage: (msg: Message) => void) => {
-      return () => {};
+
+    subscribeToMessages: (channel: 'public' | 'private', onNewMessage: (msg: Message) => void, userId?: string) => {
+      const subscription = supabase
+        .channel(`${channel}-messages`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `channel=eq.${channel}`
+        }, (payload) => {
+          const m = payload.new;
+          if (channel === 'private' && m.user_id !== userId) return;
+
+          onNewMessage({
+            id: m.id,
+            senderId: m.sender_id,
+            senderName: m.sender_name,
+            content: m.content,
+            timestamp: new Date(m.created_at),
+            isAi: m.is_ai,
+            type: m.type as any
+          });
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(subscription);
+      };
     }
   }
 };
