@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 -- This table stores both community and private AI chat messages.
 CREATE TABLE IF NOT EXISTS messages (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  sender_id UUID REFERENCES auth.users,
+  sender_id TEXT, -- Changed from UUID to TEXT to support AI bot IDs
   user_id UUID REFERENCES auth.users, -- For private messages, identifies which user's chat this belongs to
   sender_name TEXT,
   content TEXT,
@@ -52,11 +52,11 @@ CREATE POLICY "Public messages are viewable by everyone"
 
 CREATE POLICY "Private messages are viewable by the user involved"
   ON messages FOR SELECT
-  USING (channel = 'private' AND (auth.uid() = user_id OR auth.uid() = sender_id));
+  USING (channel = 'private' AND (auth.uid() = user_id OR auth.uid()::text = sender_id));
 
 CREATE POLICY "Authenticated users can insert messages"
   ON messages FOR INSERT
-  WITH CHECK (auth.uid() = sender_id);
+  WITH CHECK (auth.uid()::text = sender_id OR (channel = 'private' AND auth.uid() = user_id));
 
 -- 6. REALTIME ENABLEMENT
 -- Enable realtime for the messages table to allow live chat updates.

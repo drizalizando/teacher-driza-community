@@ -10,8 +10,7 @@ export const api = {
       if (error) throw error;
       if (!data.user) return null;
 
-      const user = await api.auth.getCurrentUser();
-      return user;
+      return await api.auth.getUserProfile(data.user);
     },
 
     signUp: async (email: string, password: string): Promise<User | null> => {
@@ -27,39 +26,41 @@ export const api = {
       if (error) throw error;
       if (!data.user) return null;
 
-      // We don't return the user yet as they might need to verify email or we need to wait for trigger to create profile
-      const user = await api.auth.getCurrentUser();
-      return user;
+      return await api.auth.getUserProfile(data.user);
     },
 
     getCurrentUser: async (): Promise<User | null> => {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) return null;
+      return await api.auth.getUserProfile(user);
+    },
 
-      const { data: profile, error: profileError } = await supabase
+    getUserProfile: async (supabaseUser: any): Promise<User> => {
+      const { data: profile } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('id', supabaseUser.id)
         .single();
 
-      if (profileError || !profile) {
-        // Fallback for new user without profile yet
+      const subscription = await api.billing.syncSubscription(supabaseUser.id);
+
+      if (!profile) {
         return {
-          id: user.id,
-          email: user.email || '',
+          id: supabaseUser.id,
+          email: supabaseUser.email || '',
           name: '',
           handle: '',
-          subscription: await api.billing.syncSubscription(user.id)
+          subscription
         };
       }
 
       return {
         id: profile.id,
-        email: profile.email,
-        name: profile.name,
-        handle: profile.handle,
+        email: profile.email || supabaseUser.email || '',
+        name: profile.name || '',
+        handle: profile.handle || '',
         avatarUrl: profile.avatar_url,
-        subscription: await api.billing.syncSubscription(user.id)
+        subscription
       };
     },
 

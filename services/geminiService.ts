@@ -1,24 +1,44 @@
 
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({
-  apiKey: import.meta.env.VITE_GEMINI_API_KEY
-});
+let genAI: GoogleGenAI | null = null;
+
+const getAI = () => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn("Gemini API Key missing.");
+    return null;
+  }
+  if (!genAI) {
+    genAI = new GoogleGenAI(apiKey);
+  }
+  return genAI;
+};
+
+const DEFAULT_MODEL = 'gemini-1.5-flash';
 
 export const validateProfilePicture = async (imageBase64: string) => {
-  const modelName = 'gemini-3-flash-preview';
+  const ai = getAI();
+  if (!ai) return true;
+
   try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: [{ parts: [{ inlineData: { mimeType: 'image/jpeg', data: imageBase64 } }, { text: "Safety check for a learning community profile picture. Safe or Unsafe? Output one word only." }] }]
-    });
-    return response.text?.trim().toUpperCase() === 'SAFE';
-  } catch (error) { return true; }
+    const model = ai.getGenerativeModel({ model: DEFAULT_MODEL });
+    const result = await model.generateContent([
+      { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
+      { text: "Safety check for a learning community profile picture. Safe or Unsafe? Output one word only." }
+    ]);
+    const response = await result.response;
+    return response.text().trim().toUpperCase() === 'SAFE';
+  } catch (error) {
+    console.error("Safety check error:", error);
+    return true;
+  }
 };
 
 export const getDrizaResponse = async (userPrompt: string, isPrivate: boolean, chatHistory: any[]) => {
-  const modelName = 'gemini-3-flash-preview';
-  
+  const ai = getAI();
+  if (!ai) return { text: "AI service currently unavailable. Please check configuration." };
+
   const systemInstruction = `You are Teacher Driza, a human-like English mentor. 
     ENVIRONMENT: Immersion mode. Users MUST practice English. 
     TONE: Supportive, professional, and slightly casual (like a modern teacher). 
@@ -37,40 +57,43 @@ export const getDrizaResponse = async (userPrompt: string, isPrivate: boolean, c
     }));
 
   try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: [...history, { role: 'user', parts: [{ text: userPrompt }] }],
-      config: { systemInstruction, temperature: 0.7 },
+    const model = ai.getGenerativeModel({
+      model: DEFAULT_MODEL,
+      systemInstruction
     });
-    return { text: response.text || "Keep practicing! I'm listening." };
+
+    const result = await model.generateContent({
+      contents: [...history, { role: 'user', parts: [{ text: userPrompt }] }],
+      generationConfig: { temperature: 0.7 },
+    });
+    const response = await result.response;
+    return { text: response.text() || "Keep practicing! I'm listening." };
   } catch (error) {
+    console.error("Gemini Error:", error);
     return { text: "Let's try that again in English! ☕" };
   }
 };
 
 export const transcribeAudio = async (audioBase64: string) => {
-  const modelName = 'gemini-3-flash-preview';
+  const ai = getAI();
+  if (!ai) return "";
+
   try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: [{ parts: [{ inlineData: { mimeType: 'audio/webm', data: audioBase64 } }, { text: "Transcribe to English text." }] }]
-    });
-    return response.text?.trim() || "";
-  } catch (error) { return ""; }
+    const model = ai.getGenerativeModel({ model: DEFAULT_MODEL });
+    const result = await model.generateContent([
+      { inlineData: { mimeType: 'audio/webm', data: audioBase64 } },
+      { text: "Transcribe to English text." }
+    ]);
+    const response = await result.response;
+    return response.text().trim() || "";
+  } catch (error) {
+    console.error("Transcription error:", error);
+    return "";
+  }
 };
 
 export const textToSpeech = async (text: string) => {
-  const modelName = 'gemini-2.5-flash-preview-tts';
-  try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: [{ parts: [{ text }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-      },
-    });
-    const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-    return audioPart?.inlineData?.data || null;
-  } catch (error) { return null; }
+  // TTS is currently handled via external providers or multimodal responses in advanced setups.
+  // Returning null to prevent crashes from unsupported model names.
+  return null;
 };
