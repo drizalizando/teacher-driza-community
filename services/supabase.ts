@@ -8,4 +8,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Missing Supabase environment variables. Please check your .env file.');
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+// Use fallback values to prevent initialization crash if environment variables are missing
+const fallbackUrl = 'https://placeholder-project.supabase.co';
+const fallbackKey = 'placeholder-key';
+
+export const supabase = createClient(
+  supabaseUrl || fallbackUrl,
+  supabaseAnonKey || fallbackKey
+);
