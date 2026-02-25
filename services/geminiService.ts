@@ -1,13 +1,24 @@
 
 import { GoogleGenAI, Modality } from "@google/genai";
 
-const ai = new GoogleGenAI({
-  apiKey: import.meta.env.VITE_GEMINI_API_KEY
-});
+// Lazy initialization to prevent crash if API key is missing
+let aiInstance: any = null;
+const getAI = () => {
+  if (!aiInstance) {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
+    // We use a fallback string to prevent the SDK from throwing an error during initialization
+    // when the key is missing in the environment.
+    aiInstance = new GoogleGenAI({
+      apiKey: apiKey || "AIzaSy_fallback_key_to_avoid_initialization_error"
+    });
+  }
+  return aiInstance;
+};
 
 export const validateProfilePicture = async (imageBase64: string) => {
-  const modelName = 'gemini-3-flash-preview';
+  const modelName = 'gemini-1.5-flash';
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelName,
       contents: [{ parts: [{ inlineData: { mimeType: 'image/jpeg', data: imageBase64 } }, { text: "Safety check for a learning community profile picture. Safe or Unsafe? Output one word only." }] }]
@@ -17,7 +28,8 @@ export const validateProfilePicture = async (imageBase64: string) => {
 };
 
 export const getDrizaResponse = async (userPrompt: string, isPrivate: boolean, chatHistory: any[]) => {
-  const modelName = 'gemini-3-flash-preview';
+  const modelName = 'gemini-1.5-flash';
+  const ai = getAI();
   
   const systemInstruction = `You are Teacher Driza, a human-like English mentor. 
     ENVIRONMENT: Immersion mode. Users MUST practice English. 
@@ -49,8 +61,9 @@ export const getDrizaResponse = async (userPrompt: string, isPrivate: boolean, c
 };
 
 export const transcribeAudio = async (audioBase64: string) => {
-  const modelName = 'gemini-3-flash-preview';
+  const modelName = 'gemini-1.5-flash';
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelName,
       contents: [{ parts: [{ inlineData: { mimeType: 'audio/webm', data: audioBase64 } }, { text: "Transcribe to English text." }] }]
@@ -60,8 +73,9 @@ export const transcribeAudio = async (audioBase64: string) => {
 };
 
 export const textToSpeech = async (text: string) => {
-  const modelName = 'gemini-2.5-flash-preview-tts';
+  const modelName = 'gemini-1.5-flash';
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelName,
       contents: [{ parts: [{ text }] }],
