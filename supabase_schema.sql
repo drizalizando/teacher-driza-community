@@ -1,17 +1,18 @@
 
 -- REVISED SCHEMA FOR TEACHER DRIZA COMMUNITY
--- Synchronized with Supabase dashboard image: profiles, chats, messages.
+-- This SQL script repairs the database schema to match the dashboard image and application logic.
 
--- 1. CLEAN UP EXISTING TRIGGERS AND FUNCTIONS
+-- 1. CLEAN UP PREVIOUS TRIGGERS AND FUNCTIONS
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_new_user();
 
--- 2. PROFILES TABLE (Matches image)
+-- 2. ENSURE PROFILES TABLE MATCHES THE DASHBOARD IMAGE
+-- Adds 'full_name' and 'role' as shown in the screenshot.
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   email TEXT,
-  full_name TEXT DEFAULT '', -- Renamed from 'name'
-  role TEXT DEFAULT 'student', -- Added from image
+  full_name TEXT DEFAULT '',
+  role TEXT DEFAULT 'student',
   handle TEXT DEFAULT '',
   avatar_url TEXT,
   subscription_status TEXT DEFAULT 'trialing',
@@ -19,24 +20,23 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. CHATS TABLE (Added from image)
+-- 3. ENSURE CHATS TABLE EXISTS (From image)
 CREATE TABLE IF NOT EXISTS public.chats (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users ON DELETE CASCADE,
-  type TEXT, -- 'public' or 'private'
+  type TEXT DEFAULT 'private', -- 'public' or 'private'
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. MESSAGES TABLE (Modified from image)
+-- 4. ENSURE MESSAGES TABLE EXISTS (From image)
 CREATE TABLE IF NOT EXISTS public.messages (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  chat_id UUID REFERENCES public.chats ON DELETE CASCADE, -- References chats.id
-  sender TEXT, -- Changed from sender_id (text in image)
+  chat_id UUID REFERENCES public.chats ON DELETE CASCADE,
+  sender TEXT, -- UUID of sender or bot ID
   content TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  -- Additional metadata for app logic (optional but helpful)
   is_ai BOOLEAN DEFAULT FALSE,
-  type TEXT -- 'user', 'teacher', 'system'
+  type TEXT DEFAULT 'user', -- 'user', 'teacher', 'system'
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 5. ENABLE ROW LEVEL SECURITY (RLS)
@@ -54,17 +54,23 @@ CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH 
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
 -- 7. POLICIES FOR CHATS
+DROP POLICY IF EXISTS "Users can view own chats" ON public.chats;
+DROP POLICY IF EXISTS "Users can insert own chats" ON public.chats;
+
 CREATE POLICY "Users can view own chats" ON public.chats FOR SELECT USING (auth.uid() = user_id OR type = 'public');
 CREATE POLICY "Users can insert own chats" ON public.chats FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- 8. POLICIES FOR MESSAGES
+DROP POLICY IF EXISTS "Users can view messages in their chats" ON public.messages;
+DROP POLICY IF EXISTS "Users can insert messages in their chats" ON public.messages;
+
 CREATE POLICY "Users can view messages in their chats"
   ON public.messages FOR SELECT
   USING (EXISTS (
     SELECT 1 FROM public.chats WHERE id = chat_id AND (user_id = auth.uid() OR type = 'public')
   ));
 
-CREATE POLICY "Users can insert messages in their chats"
+CREATE POLICY "Users can insert messages"
   ON public.messages FOR INSERT
   WITH CHECK (EXISTS (
     SELECT 1 FROM public.chats WHERE id = chat_id AND (user_id = auth.uid() OR type = 'public')
@@ -75,6 +81,7 @@ DROP PUBLICATION IF EXISTS supabase_realtime;
 CREATE PUBLICATION supabase_realtime FOR TABLE public.chats, public.messages;
 
 -- 10. AUTOMATIC PROFILE CREATION TRIGGER
+-- This function runs with SECURITY DEFINER to bypass RLS during signup.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
