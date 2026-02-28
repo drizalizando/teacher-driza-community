@@ -7,7 +7,7 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_new_user();
 
 -- 2. ENSURE PROFILES TABLE MATCHES THE DASHBOARD IMAGE
--- Adds 'full_name' and 'role' as shown in the screenshot.
+-- Ensures all columns exist regardless of whether the table was already created.
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   email TEXT,
@@ -20,6 +20,15 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ADD MISSING COLUMNS IF THEY DON'T EXIST (For users with existing tables)
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name TEXT DEFAULT '';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'student';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS handle TEXT DEFAULT '';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'trialing';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS trial_end_date TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 3. ENSURE CHATS TABLE EXISTS (From image)
 CREATE TABLE IF NOT EXISTS public.chats (
