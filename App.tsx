@@ -35,9 +35,16 @@ const App: React.FC = () => {
         if (currentUser) {
           setUser(currentUser);
           // Stronger check for completed profile
-          const isProfileComplete = currentUser.name?.trim() && currentUser.handle?.trim();
-          if (!isProfileComplete) setStep('onboarding');
-          else setStep('dashboard');
+          const isProfileComplete = !!(currentUser.name?.trim() && currentUser.handle?.trim());
+          console.log("initApp: user.name =", currentUser.name, "user.handle =", currentUser.handle, "isProfileComplete =", isProfileComplete);
+
+          if (!isProfileComplete) {
+            console.log("initApp: Redirecting to onboarding");
+            setStep('onboarding');
+          } else {
+            console.log("initApp: Redirecting to dashboard");
+            setStep('dashboard');
+          }
         }
       } catch (err) {
         console.error("Initialization error:", err);
@@ -151,12 +158,15 @@ const App: React.FC = () => {
   const handleOnboardingComplete = async (profileData: Partial<User>) => {
     if (!user) return;
     try {
+      console.log("handleOnboardingComplete: Saving data...", profileData);
       const updatedUser = { ...user, ...profileData };
       await api.auth.updateProfile(user.id, updatedUser);
       setUser(updatedUser);
+      console.log("handleOnboardingComplete: Profile updated, switching to dashboard");
       setStep('dashboard');
       setTimeout(() => setShowTour(true), 800);
     } catch (err: any) {
+      console.error("handleOnboardingComplete: Error saving profile:", err);
       alert("Error saving profile: " + err.message);
     }
   };
@@ -173,7 +183,12 @@ const App: React.FC = () => {
 
   // Renderers
   if (step === 'landing') return <Landing onGetStarted={() => setStep('auth')} onLogin={() => setStep('auth')} />;
-  if (step === 'auth' && !user) return <Auth onLogin={(u) => { setUser(u); setStep((u.name?.trim() && u.handle?.trim()) ? 'dashboard' : 'onboarding'); }} onSignup={() => setStep('payment')} />;
+  if (step === 'auth' && !user) return <Auth onLogin={(u) => {
+    setUser(u);
+    const isComplete = !!(u.name?.trim() && u.handle?.trim());
+    console.log("Auth.onLogin: user.name =", u.name, "user.handle =", u.handle, "isComplete =", isComplete);
+    setStep(isComplete ? 'dashboard' : 'onboarding');
+  }} onSignup={() => setStep('payment')} />;
   if (step === 'payment') return <PaymentBridge onPaymentConfirmed={() => setStep('onboarding')} />;
   if (step === 'onboarding' && user) return <Onboarding user={user} onComplete={handleOnboardingComplete} />;
 

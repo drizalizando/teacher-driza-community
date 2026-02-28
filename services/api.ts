@@ -23,7 +23,7 @@ export const api = {
 
       const status = profile?.subscription_status || 'trialing';
 
-      return {
+      const userData: User = {
         id: user.id,
         email: user.email || '',
         name: profile?.full_name || '', // Map full_name from DB to 'name' in frontend
@@ -38,6 +38,11 @@ export const api = {
           isAccessBlocked: status === 'blocked'
         }
       };
+
+      console.log("getCurrentUser: profile.full_name =", profile?.full_name, "-> user.name =", userData.name);
+      console.log("getCurrentUser: user.handle =", userData.handle);
+
+      return userData;
     },
     signIn: async (email: string, password: string): Promise<User | null> => {
       console.log("Attempting sign in for:", email);
