@@ -26,7 +26,7 @@ export const api = {
       return {
         id: user.id,
         email: user.email || '',
-        name: profile?.full_name || '', // Mapped from full_name
+        name: profile?.full_name || '', // Map full_name from DB to 'name' in frontend
         handle: profile?.handle || '',
         avatarUrl: profile?.avatar_url || null,
         subscription: {
@@ -59,7 +59,7 @@ export const api = {
         .from('profiles')
         .upsert({
           id: userId,
-          full_name: data.name, // Mapped to full_name
+          full_name: data.name, // Map name from frontend to 'full_name' in DB
           handle: data.handle,
           avatar_url: data.avatarUrl,
         });
