@@ -93,8 +93,14 @@ CREATE PUBLICATION supabase_realtime FOR TABLE public.chats, public.messages;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, subscription_status, trial_end_date)
-  VALUES (NEW.id, NEW.email, 'trialing', NOW() + INTERVAL '7 days')
+  INSERT INTO public.profiles (id, email, full_name, subscription_status, trial_end_date)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', ''),
+    'trialing',
+    NOW() + INTERVAL '7 days'
+  )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
