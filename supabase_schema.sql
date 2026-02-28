@@ -28,11 +28,15 @@ CREATE TABLE IF NOT EXISTS public.chats (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Ensure only one public chat exists
+CREATE UNIQUE INDEX IF NOT EXISTS unique_public_chat ON public.chats (type) WHERE type = 'public';
+
 -- 4. ENSURE MESSAGES TABLE EXISTS (From image)
 CREATE TABLE IF NOT EXISTS public.messages (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   chat_id UUID REFERENCES public.chats ON DELETE CASCADE,
   sender TEXT, -- UUID of sender or bot ID
+  sender_name TEXT, -- Added for UI convenience
   content TEXT,
   is_ai BOOLEAN DEFAULT FALSE,
   type TEXT DEFAULT 'user', -- 'user', 'teacher', 'system'
@@ -63,6 +67,7 @@ CREATE POLICY "Users can insert own chats" ON public.chats FOR INSERT WITH CHECK
 -- 8. POLICIES FOR MESSAGES
 DROP POLICY IF EXISTS "Users can view messages in their chats" ON public.messages;
 DROP POLICY IF EXISTS "Users can insert messages in their chats" ON public.messages;
+DROP POLICY IF EXISTS "Users can insert messages" ON public.messages;
 
 CREATE POLICY "Users can view messages in their chats"
   ON public.messages FOR SELECT
@@ -72,9 +77,12 @@ CREATE POLICY "Users can view messages in their chats"
 
 CREATE POLICY "Users can insert messages"
   ON public.messages FOR INSERT
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM public.chats WHERE id = chat_id AND (user_id = auth.uid() OR type = 'public')
-  ));
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.chats
+      WHERE id = chat_id AND (user_id = auth.uid() OR type = 'public')
+    )
+  );
 
 -- 9. REALTIME ENABLEMENT
 DROP PUBLICATION IF EXISTS supabase_realtime;

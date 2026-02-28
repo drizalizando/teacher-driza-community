@@ -100,7 +100,7 @@ export const api = {
       return (data || []).map(msg => ({
         id: msg.id,
         senderId: msg.sender,
-        senderName: msg.sender === 'teacher-driza-ai' ? 'Teacher Driza' : 'Student',
+        senderName: msg.sender_name || (msg.sender === 'teacher-driza-ai' ? 'Teacher Driza' : 'Student'),
         content: msg.content,
         timestamp: new Date(msg.created_at),
         isAi: msg.is_ai,
@@ -131,6 +131,7 @@ export const api = {
         .insert({
           chat_id: chat.id,
           sender: message.senderId,
+          sender_name: message.senderName,
           content: message.content,
           is_ai: message.isAi || false,
           type: message.type
@@ -138,32 +139,47 @@ export const api = {
       if (error) throw error;
     },
     subscribeToMessages: (channel: 'public' | 'private', callback: (message: Message) => void, userId?: string) => {
+      // Create a unique channel name to avoid conflicts
+      const channelName = `messages:${channel}:${userId || 'public'}`;
+
       const subscription = supabase
-        .channel(`messages:${channel}${userId ? ':' + userId : ''}`)
+        .channel(channelName)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
         }, async (payload) => {
            const msg = payload.new;
-           // Check if this message belongs to the current chat type/user
-           const { data: chat } = await supabase.from('chats').select('type, user_id').eq('id', msg.chat_id).single();
 
-           if (chat && chat.type === channel && (channel === 'public' || chat.user_id === userId)) {
-              callback({
-                id: msg.id,
-                senderId: msg.sender,
-                senderName: msg.sender === 'teacher-driza-ai' ? 'Teacher Driza' : 'Student',
-                content: msg.content,
-                timestamp: new Date(msg.created_at),
-                isAi: msg.is_ai,
-                type: msg.type
-              });
+           // Optimization: Check chat context to verify if message belongs here
+           const { data: chat, error } = await supabase
+            .from('chats')
+            .select('type, user_id')
+            .eq('id', msg.chat_id)
+            .single();
+
+           if (!error && chat && chat.type === channel) {
+             if (channel === 'public' || chat.user_id === userId) {
+                callback({
+                  id: msg.id,
+                  senderId: msg.sender,
+                senderName: msg.sender_name || (msg.sender === 'teacher-driza-ai' ? 'Teacher Driza' : 'Student'),
+                  content: msg.content,
+                  timestamp: new Date(msg.created_at),
+                  isAi: msg.is_ai,
+                  type: msg.type
+                });
+             }
            }
         })
-        .subscribe();
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`Subscribed to ${channel} messages`);
+          }
+        });
 
       return () => {
+        console.log(`Unsubscribing from ${channel} messages`);
         supabase.removeChannel(subscription);
       };
     }
