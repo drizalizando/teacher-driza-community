@@ -71,7 +71,7 @@ const App: React.FC = () => {
     if (!user) return;
 
     const newMessage: Message = {
-      id: Date.now().toString(), // Supabase will override this with uuid
+      id: `temp-${Date.now()}`,
       senderId: user.id,
       senderName: user.name,
       content: text,
@@ -79,18 +79,21 @@ const App: React.FC = () => {
       type: 'user'
     };
 
-    // If it's the private channel, we handle AI response
-    if (channel === 'private') {
-      await api.chat.sendMessage(newMessage, 'private', user.id);
+    // Optimistically update local state if real-time is slow
+    // But since we have real-time, we'll just send to DB and let listener handle it
+    await api.chat.sendMessage(newMessage, channel, user.id);
 
-      // Trigger AI Response
+    // AI Trigger Logic
+    const shouldTriggerAi = channel === 'private' || text.toLowerCase().includes('@teacherdriza');
+
+    if (shouldTriggerAi) {
       setIsAiTyping(true);
       try {
-        const history = [...privateMessages, newMessage];
-        const response = await getDrizaResponse(text, true, history);
+        const history = channel === 'private' ? privateMessages : publicMessages;
+        const response = await getDrizaResponse(text, channel === 'private', history);
 
         const aiMessage: Message = {
-          id: (Date.now() + 1).toString(),
+          id: `temp-ai-${Date.now()}`,
           senderId: DRIZA_BOT_ID,
           senderName: 'Teacher Driza',
           content: response.text,
@@ -99,14 +102,12 @@ const App: React.FC = () => {
           type: 'teacher'
         };
 
-        await api.chat.sendMessage(aiMessage, 'private', user.id);
+        await api.chat.sendMessage(aiMessage, channel, user.id);
       } catch (error) {
         console.error("AI Response error:", error);
       } finally {
         setIsAiTyping(false);
       }
-    } else {
-      await api.chat.sendMessage(newMessage, 'public');
     }
   };
 
