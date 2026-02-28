@@ -6,13 +6,20 @@ export const api = {
   auth: {
     getCurrentUser: async (): Promise<User | null> => {
       const { data: { user }, error } = await supabase.auth.getUser();
-      if (error || !user) return null;
+      if (error || !user) {
+        if (error) console.error("Error fetching auth user:", error.message);
+        return null;
+      }
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
+
+      if (profileError) {
+        console.warn("Profile fetch error (might be first login):", profileError.message);
+      }
 
       const status = profile?.subscription_status || 'trialing';
 
@@ -50,12 +57,13 @@ export const api = {
     updateProfile: async (userId: string, data: Partial<User>) => {
       const { error } = await supabase
         .from('profiles')
-        .update({
+        .upsert({
+          id: userId,
           name: data.name,
           handle: data.handle,
           avatar_url: data.avatarUrl,
-        })
-        .eq('id', userId);
+          updated_at: new Date().toISOString()
+        });
       if (error) throw error;
     }
   },
