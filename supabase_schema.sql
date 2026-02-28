@@ -1,83 +1,80 @@
 
--- SCHEMA REPAIR FOR TEACHER DRIZA COMMUNITY
--- This SQL file cleans up the database state and sets up a single source of truth.
+-- REVISED SCHEMA FOR TEACHER DRIZA COMMUNITY
+-- Synchronized with Supabase dashboard image: profiles, chats, messages.
 
 -- 1. CLEAN UP EXISTING TRIGGERS AND FUNCTIONS
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_new_user();
 
--- 2. ENSURE PROFILES TABLE EXISTS WITH CORRECT STRUCTURE
+-- 2. PROFILES TABLE (Matches image)
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   email TEXT,
-  name TEXT DEFAULT '',
+  full_name TEXT DEFAULT '', -- Renamed from 'name'
+  role TEXT DEFAULT 'student', -- Added from image
   handle TEXT DEFAULT '',
   avatar_url TEXT,
   subscription_status TEXT DEFAULT 'trialing',
   trial_end_date TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days',
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 3. ENSURE MESSAGES TABLE EXISTS
-CREATE TABLE IF NOT EXISTS public.messages (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  sender_id UUID REFERENCES auth.users,
-  user_id UUID REFERENCES auth.users,
-  sender_name TEXT,
-  content TEXT,
-  channel TEXT, -- 'public' or 'private'
-  is_ai BOOLEAN DEFAULT FALSE,
-  type TEXT, -- 'user', 'teacher', 'system'
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. ENABLE ROW LEVEL SECURITY (RLS)
+-- 3. CHATS TABLE (Added from image)
+CREATE TABLE IF NOT EXISTS public.chats (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE,
+  type TEXT, -- 'public' or 'private'
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. MESSAGES TABLE (Modified from image)
+CREATE TABLE IF NOT EXISTS public.messages (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  chat_id UUID REFERENCES public.chats ON DELETE CASCADE, -- References chats.id
+  sender TEXT, -- Changed from sender_id (text in image)
+  content TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  -- Additional metadata for app logic (optional but helpful)
+  is_ai BOOLEAN DEFAULT FALSE,
+  type TEXT -- 'user', 'teacher', 'system'
+);
+
+-- 5. ENABLE ROW LEVEL SECURITY (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
--- 5. CLEAN UP AND REBUILD POLICIES FOR PROFILES
-DROP POLICY IF EXISTS "Profiles are viewable by everyone" ON public.profiles;
-DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+-- 6. POLICIES FOR PROFILES
 DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.profiles;
-DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 
-CREATE POLICY "Public profiles are viewable by everyone"
-  ON public.profiles FOR SELECT
-  USING (TRUE);
+CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles FOR SELECT USING (TRUE);
+CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
-CREATE POLICY "Users can insert own profile"
-  ON public.profiles FOR INSERT
-  WITH CHECK (auth.uid() = id);
+-- 7. POLICIES FOR CHATS
+CREATE POLICY "Users can view own chats" ON public.chats FOR SELECT USING (auth.uid() = user_id OR type = 'public');
+CREATE POLICY "Users can insert own chats" ON public.chats FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can update own profile"
-  ON public.profiles FOR UPDATE
-  USING (auth.uid() = id);
-
--- 6. CLEAN UP AND REBUILD POLICIES FOR MESSAGES
-DROP POLICY IF EXISTS "Public messages are viewable by everyone" ON public.messages;
-DROP POLICY IF EXISTS "Private messages are viewable by the user involved" ON public.messages;
-DROP POLICY IF EXISTS "Authenticated users can insert messages" ON public.messages;
-
-CREATE POLICY "Public messages are viewable by everyone"
+-- 8. POLICIES FOR MESSAGES
+CREATE POLICY "Users can view messages in their chats"
   ON public.messages FOR SELECT
-  USING (channel = 'public');
+  USING (EXISTS (
+    SELECT 1 FROM public.chats WHERE id = chat_id AND (user_id = auth.uid() OR type = 'public')
+  ));
 
-CREATE POLICY "Private messages are viewable by the user involved"
-  ON public.messages FOR SELECT
-  USING (channel = 'private' AND (auth.uid() = user_id OR auth.uid() = sender_id));
-
-CREATE POLICY "Users can insert messages"
+CREATE POLICY "Users can insert messages in their chats"
   ON public.messages FOR INSERT
-  WITH CHECK (auth.uid() = sender_id OR auth.uid() = user_id);
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM public.chats WHERE id = chat_id AND (user_id = auth.uid() OR type = 'public')
+  ));
 
--- 7. REALTIME ENABLEMENT
--- Drop and recreate publication to avoid duplicates
+-- 9. REALTIME ENABLEMENT
 DROP PUBLICATION IF EXISTS supabase_realtime;
-CREATE PUBLICATION supabase_realtime FOR TABLE public.messages;
+CREATE PUBLICATION supabase_realtime FOR TABLE public.chats, public.messages;
 
--- 8. AUTOMATIC PROFILE CREATION TRIGGER
--- This function runs with SECURITY DEFINER to ensure it has permissions to write to public.profiles
+-- 10. AUTOMATIC PROFILE CREATION TRIGGER
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
