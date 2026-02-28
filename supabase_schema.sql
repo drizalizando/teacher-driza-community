@@ -56,7 +56,7 @@ CREATE POLICY "Private messages are viewable by the user involved"
 
 CREATE POLICY "Authenticated users can insert messages"
   ON messages FOR INSERT
-  WITH CHECK (auth.uid() = sender_id);
+  WITH CHECK (auth.uid() = sender_id OR auth.uid() = user_id);
 
 -- 6. REALTIME ENABLEMENT
 -- Enable realtime for the messages table to allow live chat updates.
