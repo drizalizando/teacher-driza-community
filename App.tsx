@@ -173,7 +173,7 @@ const App: React.FC = () => {
 
   // Renderers
   if (step === 'landing') return <Landing onGetStarted={() => setStep('auth')} onLogin={() => setStep('auth')} />;
-  if (step === 'auth' && !user) return <Auth onLogin={(u) => { setUser(u); setStep(u.name ? 'dashboard' : 'onboarding'); }} onSignup={() => setStep('payment')} />;
+  if (step === 'auth' && !user) return <Auth onLogin={(u) => { setUser(u); setStep((u.name?.trim() && u.handle?.trim()) ? 'dashboard' : 'onboarding'); }} onSignup={() => setStep('payment')} />;
   if (step === 'payment') return <PaymentBridge onPaymentConfirmed={() => setStep('onboarding')} />;
   if (step === 'onboarding' && user) return <Onboarding user={user} onComplete={handleOnboardingComplete} />;
 
