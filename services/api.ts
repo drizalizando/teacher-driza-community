@@ -91,9 +91,9 @@ export const api = {
         .from('profiles')
         .upsert({
           id: userId,
-          full_name: data.name, // Map name from frontend to 'full_name' in DB
-          handle: data.handle,
-          avatar_url: data.avatarUrl,
+          full_name: data.name || '',
+          handle: data.handle || '',
+          avatar_url: data.avatarUrl || null,
           updated_at: new Date().toISOString()
         });
       if (error) {

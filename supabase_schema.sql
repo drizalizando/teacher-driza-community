@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   avatar_url TEXT,
   subscription_status TEXT DEFAULT 'trialing',
   trial_end_date TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days',
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 3. ENSURE CHATS TABLE EXISTS (From image)
