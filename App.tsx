@@ -20,20 +20,29 @@ type AppStep = 'landing' | 'auth' | 'payment' | 'onboarding' | 'dashboard';
 const App: React.FC = () => {
   const [step, setStep] = useState<AppStep>('landing');
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>('public');
   const [isAiTyping, setIsAiTyping] = useState(false);
   const [showTour, setShowTour] = useState(false);
-  
+
   const [publicMessages, setPublicMessages] = useState<Message[]>([]);
   const [privateMessages, setPrivateMessages] = useState<Message[]>([]);
 
   useEffect(() => {
     const initApp = async () => {
-      const currentUser = await api.auth.getCurrentUser();
-      if (currentUser) {
-        setUser(currentUser);
-        if (!currentUser.name || !currentUser.handle) setStep('onboarding');
-        else setStep('dashboard');
+      try {
+        const currentUser = await api.auth.getCurrentUser();
+        if (currentUser) {
+          setUser(currentUser);
+          // Stronger check for completed profile
+          const isProfileComplete = currentUser.name?.trim() && currentUser.handle?.trim();
+          if (!isProfileComplete) setStep('onboarding');
+          else setStep('dashboard');
+        }
+      } catch (err) {
+        console.error("Initialization error:", err);
+      } finally {
+        setIsLoading(false);
       }
     };
     initApp();
@@ -111,16 +120,56 @@ const App: React.FC = () => {
     }
   };
 
+  // Fetch history and subscribe when in dashboard
+  useEffect(() => {
+    if (step !== 'dashboard' || !user) return;
+
+    // Public messages
+    api.chat.getHistory('public').then(setPublicMessages);
+    const unsubPublic = api.chat.subscribeToMessages('public', (msg) => {
+      setPublicMessages(prev => {
+        if (prev.find(m => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+    });
+
+    // Private messages
+    api.chat.getHistory('private', user.id).then(setPrivateMessages);
+    const unsubPrivate = api.chat.subscribeToMessages('private', (msg) => {
+      setPrivateMessages(prev => {
+        if (prev.find(m => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+    }, user.id);
+
+    return () => {
+      unsubPublic();
+      unsubPrivate();
+    };
+  }, [step, user?.id]);
+
   const handleOnboardingComplete = async (profileData: Partial<User>) => {
     if (!user) return;
-    const updatedUser = { ...user, ...profileData };
-    await api.auth.updateProfile(user.id, updatedUser);
-    setUser(updatedUser);
-    setStep('dashboard');
-    setTimeout(() => setShowTour(true), 800);
+    try {
+      const updatedUser = { ...user, ...profileData };
+      await api.auth.updateProfile(user.id, updatedUser);
+      setUser(updatedUser);
+      setStep('dashboard');
+      setTimeout(() => setShowTour(true), 800);
+    } catch (err: any) {
+      alert("Error saving profile: " + err.message);
+    }
   };
 
   const isAccessBlocked = user?.subscription.isAccessBlocked;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-pearl-50 flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-coral-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   // Renderers
   if (step === 'landing') return <Landing onGetStarted={() => setStep('auth')} onLogin={() => setStep('auth')} />;

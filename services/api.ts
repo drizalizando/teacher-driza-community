@@ -15,10 +15,10 @@ export const api = {
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       if (profileError) {
-        console.warn("Profile fetch error (might be first login):", profileError.message);
+        console.error("Profile fetch error:", profileError.message);
       }
 
       const status = profile?.subscription_status || 'trialing';
@@ -40,21 +40,53 @@ export const api = {
       };
     },
     signIn: async (email: string, password: string): Promise<User | null> => {
+      console.log("Attempting sign in for:", email);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      if (error) {
+        console.error("Sign in error:", error.message);
+        throw error;
+      }
       if (!data.user) return null;
-      return api.auth.getCurrentUser();
+
+      const user = await api.auth.getCurrentUser();
+      if (!user) {
+        // Fallback if trigger hasn't finished
+        return {
+          id: data.user.id,
+          email: data.user.email || '',
+          name: '',
+          handle: '',
+          subscription: { status: 'trialing', trialEndDate: '', nextBillingDate: null, isTrialActive: true, isSubscriptionActive: true, isAccessBlocked: false }
+        };
+      }
+      return user;
     },
     signUp: async (email: string, password: string): Promise<User | null> => {
+      console.log("Attempting sign up for:", email);
       const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
+      if (error) {
+        console.error("Sign up error:", error.message);
+        throw error;
+      }
       if (!data.user) return null;
-      return api.auth.getCurrentUser();
+
+      const user = await api.auth.getCurrentUser();
+      if (!user) {
+        return {
+          id: data.user.id,
+          email: data.user.email || '',
+          name: '',
+          handle: '',
+          subscription: { status: 'trialing', trialEndDate: '', nextBillingDate: null, isTrialActive: true, isSubscriptionActive: true, isAccessBlocked: false }
+        };
+      }
+      return user;
     },
     signOut: async () => {
       await supabase.auth.signOut();
     },
     updateProfile: async (userId: string, data: Partial<User>) => {
+      console.log("Updating profile for:", userId, data);
       const { error } = await supabase
         .from('profiles')
         .upsert({
@@ -62,8 +94,13 @@ export const api = {
           full_name: data.name, // Map name from frontend to 'full_name' in DB
           handle: data.handle,
           avatar_url: data.avatarUrl,
+          updated_at: new Date().toISOString()
         });
-      if (error) throw error;
+      if (error) {
+        console.error("Profile update error:", error.message);
+        throw error;
+      }
+      console.log("Profile updated successfully");
     }
   },
   billing: {
