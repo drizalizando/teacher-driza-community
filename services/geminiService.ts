@@ -6,7 +6,7 @@ const ai = new GoogleGenAI({
 });
 
 export const validateProfilePicture = async (imageBase64: string) => {
-  const modelName = 'gemini-3-flash-preview';
+  const modelName = 'gemini-1.5-flash';
   try {
     const response = await ai.models.generateContent({
       model: modelName,
@@ -17,7 +17,7 @@ export const validateProfilePicture = async (imageBase64: string) => {
 };
 
 export const getDrizaResponse = async (userPrompt: string, isPrivate: boolean, chatHistory: any[]) => {
-  const modelName = 'gemini-3-flash-preview';
+  const modelName = 'gemini-1.5-flash';
   
   const systemInstruction = `You are Teacher Driza, a human-like English mentor. 
     ENVIRONMENT: Immersion mode. Users MUST practice English. 
@@ -49,7 +49,7 @@ export const getDrizaResponse = async (userPrompt: string, isPrivate: boolean, c
 };
 
 export const transcribeAudio = async (audioBase64: string) => {
-  const modelName = 'gemini-3-flash-preview';
+  const modelName = 'gemini-1.5-flash';
   try {
     const response = await ai.models.generateContent({
       model: modelName,

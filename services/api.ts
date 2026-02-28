@@ -14,6 +14,8 @@ export const api = {
         .eq('id', user.id)
         .single();
 
+      const status = profile?.subscription_status || 'trialing';
+
       return {
         id: user.id,
         email: user.email || '',
@@ -21,12 +23,12 @@ export const api = {
         handle: profile?.handle || '',
         avatarUrl: profile?.avatar_url || null,
         subscription: {
-          status: profile?.subscription_status || 'trialing',
+          status: status,
           trialEndDate: profile?.trial_end_date || null,
           nextBillingDate: null,
-          isTrialActive: true,
-          isSubscriptionActive: true,
-          isAccessBlocked: false
+          isTrialActive: status === 'trialing',
+          isSubscriptionActive: status === 'active' || status === 'trialing',
+          isAccessBlocked: status === 'blocked'
         }
       };
     },
@@ -55,6 +57,15 @@ export const api = {
         })
         .eq('id', userId);
       if (error) throw error;
+    }
+  },
+  billing: {
+    getCheckoutUrl: async (type: 'portal' | 'subscription'): Promise<string> => {
+      const { data, error } = await supabase.functions.invoke('asaas-checkout', {
+        body: { type }
+      });
+      if (error) throw error;
+      return data.url;
     }
   },
   chat: {
