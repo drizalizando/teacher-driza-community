@@ -68,12 +68,24 @@ export const api = {
     },
     signUp: async (email: string, password: string): Promise<User | null> => {
       console.log("Attempting sign up for:", email);
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: '',
+            handle: ''
+          }
+        }
+      });
       if (error) {
         console.error("Sign up error:", error.message);
         throw error;
       }
       if (!data.user) return null;
+
+      // Wait for trigger to create profile (small delay for database consistency)
+      await new Promise(resolve => setTimeout(resolve, 800));
 
       const user = await api.auth.getCurrentUser();
       if (!user) {
@@ -118,7 +130,7 @@ export const api = {
     }
   },
   chat: {
-    getHistory: async (channel: 'public' | 'private', userId?: string): Promise<Message[]> => {
+    getHistory: async (channel: 'public' | 'private', userId?: string, limit: number = 100): Promise<Message[]> => {
       // 1. Get or Create the Chat
       const { data: chat, error: chatErr } = await supabase
         .from('chats')
@@ -130,16 +142,18 @@ export const api = {
       if (chatErr) throw chatErr;
       if (!chat) return [];
 
-      // 2. Get Messages for that chat
+      // 2. Get ONLY last 100 messages (pagination)
       const { data, error } = await supabase
         .from('messages')
         .select('*')
         .eq('chat_id', chat.id)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false })
+        .limit(limit);
 
       if (error) throw error;
 
-      return (data || []).map(msg => ({
+      // Reverse to show oldest first
+      return (data || []).reverse().map(msg => ({
         id: msg.id,
         senderId: msg.sender,
         senderName: msg.sender_name || (msg.sender === 'teacher-driza-ai' ? 'Teacher Driza' : 'Student'),
@@ -181,48 +195,59 @@ export const api = {
       if (error) throw error;
     },
     subscribeToMessages: (channel: 'public' | 'private', callback: (message: Message) => void, userId?: string) => {
-      // Create a unique channel name to avoid conflicts
       const channelName = `messages:${channel}:${userId || 'public'}`;
 
-      const subscription = supabase
-        .channel(channelName)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-        }, async (payload) => {
-           const msg = payload.new;
+      // First, get the chat_id for filtering
+      const getChatId = async () => {
+        const { data: chat } = await supabase
+          .from('chats')
+          .select('id')
+          .eq('type', channel)
+          .eq(channel === 'private' ? 'user_id' : 'type', channel === 'private' ? userId : 'public')
+          .maybeSingle();
 
-           // Optimization: Check chat context to verify if message belongs here
-           const { data: chat, error } = await supabase
-            .from('chats')
-            .select('type, user_id')
-            .eq('id', msg.chat_id)
-            .single();
+        return chat?.id;
+      };
 
-           if (!error && chat && chat.type === channel) {
-             if (channel === 'public' || chat.user_id === userId) {
-                callback({
-                  id: msg.id,
-                  senderId: msg.sender,
-                senderName: msg.sender_name || (msg.sender === 'teacher-driza-ai' ? 'Teacher Driza' : 'Student'),
-                  content: msg.content,
-                  timestamp: new Date(msg.created_at),
-                  isAi: msg.is_ai,
-                  type: msg.type
-                });
-             }
-           }
-        })
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            console.log(`Subscribed to ${channel} messages`);
-          }
-        });
+      let subscription: any;
+
+      getChatId().then(chatId => {
+        if (!chatId) {
+          console.warn(`No chat found for ${channel}`);
+          return;
+        }
+
+        subscription = supabase
+          .channel(channelName)
+          .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `chat_id=eq.${chatId}` // CRITICAL: Filter at database level
+          }, (payload) => {
+            const msg = payload.new;
+            callback({
+              id: msg.id,
+              senderId: msg.sender,
+              senderName: msg.sender_name || (msg.sender === 'teacher-driza-ai' ? 'Teacher Driza' : 'Student'),
+              content: msg.content,
+              timestamp: new Date(msg.created_at),
+              isAi: msg.is_ai,
+              type: msg.type
+            });
+          })
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              console.log(`Subscribed to ${channel} messages (chat_id: ${chatId})`);
+            }
+          });
+      });
 
       return () => {
         console.log(`Unsubscribing from ${channel} messages`);
-        supabase.removeChannel(subscription);
+        if (subscription) {
+          supabase.removeChannel(subscription);
+        }
       };
     }
   }

@@ -1,30 +1,48 @@
-
 import React, { useState, useEffect } from 'react';
 import { Icons } from '../constants';
+import { api } from '../services/api';
 
 interface PaymentBridgeProps {
   onPaymentConfirmed: () => void;
 }
 
 const PaymentBridge: React.FC<PaymentBridgeProps> = ({ onPaymentConfirmed }) => {
-  const [status, setStatus] = useState<'redirecting' | 'pending' | 'success'>('redirecting');
+  const [status, setStatus] = useState<'redirecting' | 'error' | 'success'>('redirecting');
 
   useEffect(() => {
-    // Simulando o fluxo: 
-    // 1. Redireciona para o checkout
-    // 2. Aguarda "pagamento" (aqui simulado com timeout)
-    const timer = setTimeout(() => {
-      setStatus('pending');
-      const confirmationTimer = setTimeout(() => {
-        setStatus('success');
-        const finalTimer = setTimeout(onPaymentConfirmed, 2000);
-        return () => clearTimeout(finalTimer);
-      }, 3000);
-      return () => clearTimeout(confirmationTimer);
-    }, 2000);
+    const redirectToCheckout = async () => {
+      try {
+        const checkoutUrl = await api.billing.getCheckoutUrl('subscription');
+        window.location.href = checkoutUrl; // Redirect to Asaas
+      } catch (error) {
+        console.error("Checkout error:", error);
+        setStatus('error');
+      }
+    };
 
-    return () => clearTimeout(timer);
-  }, [onPaymentConfirmed]);
+    redirectToCheckout();
+  }, []);
+
+  // If user returns from Asaas (webhook will update their status)
+  useEffect(() => {
+    const checkPaymentStatus = async () => {
+      // Poll for payment confirmation
+      const interval = setInterval(async () => {
+        const user = await api.auth.getCurrentUser();
+        if (user && user.subscription.status === 'active') {
+          clearInterval(interval);
+          setStatus('success');
+          setTimeout(onPaymentConfirmed, 2000);
+        }
+      }, 3000);
+
+      return () => clearInterval(interval);
+    };
+
+    if (status === 'redirecting') {
+      checkPaymentStatus();
+    }
+  }, [status, onPaymentConfirmed]);
 
   return (
     <div className="min-h-screen bg-pearl-50 flex items-center justify-center p-6 text-center">
@@ -39,16 +57,19 @@ const PaymentBridge: React.FC<PaymentBridgeProps> = ({ onPaymentConfirmed }) => 
           </div>
         )}
 
-        {status === 'pending' && (
+        {status === 'error' && (
           <div className="space-y-6">
-            <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto">
+            <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto">
               <Icons.CreditCard />
             </div>
-            <h2 className="text-2xl font-black tracking-tighter uppercase">Aguardando Pagamento</h2>
-            <p className="text-gray-500 font-medium">Finalize sua assinatura no checkout. Assim que o Asaas confirmar, liberaremos seu acesso automaticamente.</p>
-            <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 animate-pulse">
-               <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Verificando status em tempo real...</p>
-            </div>
+            <h2 className="text-2xl font-black tracking-tighter uppercase">Erro no Checkout</h2>
+            <p className="text-gray-500 font-medium">Não conseguimos processar o pagamento. Tente novamente.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full py-4 bg-coral-500 text-white font-black rounded-2xl"
+            >
+              Tentar Novamente
+            </button>
           </div>
         )}
 

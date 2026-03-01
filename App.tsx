@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, Message } from './types';
-import { DRIZA_BOT_ID, MOCK_USER, Icons } from './constants';
+import { DRIZA_BOT_ID, Icons } from './constants';
 import { getDrizaResponse, transcribeAudio, textToSpeech } from './services/geminiService';
 import { api } from './services/api';
 import Sidebar from './components/Sidebar';
@@ -14,6 +14,7 @@ import Landing from './pages/Landing';
 import Onboarding from './pages/Onboarding';
 import PaymentBridge from './pages/PaymentBridge';
 import AppTour from './components/AppTour';
+import LoadingSpinner from './components/LoadingSpinner';
 
 type AppStep = 'landing' | 'auth' | 'payment' | 'onboarding' | 'dashboard';
 
@@ -127,44 +128,22 @@ const App: React.FC = () => {
     }
   };
 
-  // Fetch history and subscribe when in dashboard
-  useEffect(() => {
-    if (step !== 'dashboard' || !user) return;
-
-    // Public messages
-    api.chat.getHistory('public').then(setPublicMessages);
-    const unsubPublic = api.chat.subscribeToMessages('public', (msg) => {
-      setPublicMessages(prev => {
-        if (prev.find(m => m.id === msg.id)) return prev;
-        return [...prev, msg];
-      });
-    });
-
-    // Private messages
-    api.chat.getHistory('private', user.id).then(setPrivateMessages);
-    const unsubPrivate = api.chat.subscribeToMessages('private', (msg) => {
-      setPrivateMessages(prev => {
-        if (prev.find(m => m.id === msg.id)) return prev;
-        return [...prev, msg];
-      });
-    }, user.id);
-
-    return () => {
-      unsubPublic();
-      unsubPrivate();
-    };
-  }, [step, user?.id]);
-
   const handleOnboardingComplete = async (profileData: Partial<User>) => {
     if (!user) return;
     try {
       console.log("handleOnboardingComplete: Saving data...", profileData);
-      const updatedUser = { ...user, ...profileData };
-      await api.auth.updateProfile(user.id, updatedUser);
-      setUser(updatedUser);
-      console.log("handleOnboardingComplete: Profile updated, switching to dashboard");
-      setStep('dashboard');
-      setTimeout(() => setShowTour(true), 800);
+      await api.auth.updateProfile(user.id, profileData);
+
+      // CRITICAL: Fetch fresh user data from database
+      const freshUser = await api.auth.getCurrentUser();
+      if (freshUser) {
+        setUser(freshUser);
+        console.log("handleOnboardingComplete: Fresh user data loaded:", freshUser.name, freshUser.handle);
+        setStep('dashboard');
+        setTimeout(() => setShowTour(true), 800);
+      } else {
+        throw new Error("Failed to reload user data");
+      }
     } catch (err: any) {
       console.error("handleOnboardingComplete: Error saving profile:", err);
       alert("Error saving profile: " + err.message);
@@ -174,11 +153,7 @@ const App: React.FC = () => {
   const isAccessBlocked = user?.subscription.isAccessBlocked;
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-pearl-50 flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-coral-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return <LoadingSpinner fullScreen message="Loading your account..." />;
   }
 
   // Renderers

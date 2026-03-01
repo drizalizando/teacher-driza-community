@@ -1,76 +1,55 @@
-
-import { GoogleGenAI, Modality } from "@google/genai";
-
-const ai = new GoogleGenAI({
-  apiKey: import.meta.env.VITE_GEMINI_API_KEY
-});
+import { supabase } from './supabase';
 
 export const validateProfilePicture = async (imageBase64: string) => {
-  const modelName = 'gemini-1.5-flash';
   try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: [{ parts: [{ inlineData: { mimeType: 'image/jpeg', data: imageBase64 } }, { text: "Safety check for a learning community profile picture. Safe or Unsafe? Output one word only." }] }]
+    const { data, error } = await supabase.functions.invoke('validate-profile-picture', {
+      body: { imageBase64 }
     });
-    return response.text?.trim().toUpperCase() === 'SAFE';
-  } catch (error) { return true; }
+    if (error) return true; // Fail open for UX
+    return data?.isSafe !== false;
+  } catch (error) {
+    return true; // Fail open
+  }
 };
 
 export const getDrizaResponse = async (userPrompt: string, isPrivate: boolean, chatHistory: any[]) => {
-  const modelName = 'gemini-1.5-flash';
-  
-  const systemInstruction = `You are Teacher Driza, a human-like English mentor. 
-    ENVIRONMENT: Immersion mode. Users MUST practice English. 
-    TONE: Supportive, professional, and slightly casual (like a modern teacher). 
-    RULES: 
-    1. If a user speaks Portuguese, gently encourage them to try in English. 
-    2. Correct mistakes implicitly by modeling the correct sentence. 
-    3. Keep messages concise. 
-    4. NO markdown asterisks for bold/italic. 
-    5. Be a guardian of community well-being: promote kindness and positivity.`;
-
-  const history = chatHistory
-    .filter(msg => msg.senderId !== 'system')
-    .map(msg => ({
-      role: msg.isAi ? 'model' : 'user',
-      parts: [{ text: msg.content }],
-    }));
-
   try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: [...history, { role: 'user', parts: [{ text: userPrompt }] }],
-      config: { systemInstruction, temperature: 0.7 },
+    const { data, error } = await supabase.functions.invoke('ai-chat', {
+      body: {
+        prompt: userPrompt,
+        isPrivate,
+        chatHistory: chatHistory.slice(-10) // Send only last 10 messages to reduce payload
+      }
     });
-    return { text: response.text || "Keep practicing! I'm listening." };
+
+    if (error) throw error;
+    return { text: data?.text || "Keep practicing! I'm listening." };
   } catch (error) {
+    console.error("AI Response error:", error);
     return { text: "Let's try that again in English! ☕" };
   }
 };
 
 export const transcribeAudio = async (audioBase64: string) => {
-  const modelName = 'gemini-1.5-flash';
   try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: [{ parts: [{ inlineData: { mimeType: 'audio/webm', data: audioBase64 } }, { text: "Transcribe to English text." }] }]
+    const { data, error } = await supabase.functions.invoke('transcribe-audio', {
+      body: { audioBase64 }
     });
-    return response.text?.trim() || "";
-  } catch (error) { return ""; }
+    if (error) throw error;
+    return data?.text || "";
+  } catch (error) {
+    return "";
+  }
 };
 
 export const textToSpeech = async (text: string) => {
-  const modelName = 'gemini-2.5-flash-preview-tts';
   try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: [{ parts: [{ text }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-      },
+    const { data, error } = await supabase.functions.invoke('text-to-speech', {
+      body: { text }
     });
-    const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-    return audioPart?.inlineData?.data || null;
-  } catch (error) { return null; }
+    if (error) throw error;
+    return data?.audioBase64 || null;
+  } catch (error) {
+    return null;
+  }
 };

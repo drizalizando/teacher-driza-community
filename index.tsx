@@ -1,25 +1,13 @@
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import ErrorBoundary from './components/ErrorBoundary';
+import './index.css';
 
-// Global Error Monitoring
-window.onerror = (message, source, lineno, colno, error) => {
-  console.error("Global Error:", { message, source, lineno, colno, error });
-};
-
-window.onunhandledrejection = (event) => {
-  console.error("Unhandled Promise Rejection:", event.reason);
-};
-
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
-}
-
-const root = ReactDOM.createRoot(rootElement);
-root.render(
+ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>
 );
