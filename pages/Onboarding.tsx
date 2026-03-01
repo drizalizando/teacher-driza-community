@@ -3,6 +3,7 @@ import React, { useState, useRef } from 'react';
 import { User } from '../types';
 import { Icons } from '../constants';
 import { validateProfilePicture } from '../services/geminiService';
+import { supabase } from '../services/supabase';
 
 interface OnboardingProps {
   user: User;
@@ -35,25 +36,54 @@ const Onboarding: React.FC<OnboardingProps> = ({ user, onComplete }) => {
     setIsValidating(true);
     setError(null);
 
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = (reader.result as string).split(',')[1];
-      try {
-        const isSafe = await validateProfilePicture(base64);
-        if (isSafe) {
-          setFormData({ ...formData, avatarUrl: reader.result as string });
-          setError(null);
-        } else {
-          setError("Image content issue. Please use another.");
-          setFormData({ ...formData, avatarUrl: '' });
-        }
-      } catch (err) {
-        setError("Process error. Try again.");
-      } finally {
+    try {
+      // Read as base64 for validation
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+        reader.readAsDataURL(file);
+      });
+
+      const base64 = await base64Promise;
+
+      // Validate with AI
+      const isSafe = await validateProfilePicture(base64);
+      if (!isSafe) {
+        setError("Image content issue. Please use another.");
+        setFormData({ ...formData, avatarUrl: '' });
         setIsValidating(false);
+        return;
       }
-    };
-    reader.readAsDataURL(file);
+
+      // Upload to Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, avatarUrl: urlData.publicUrl });
+      setError(null);
+    } catch (err: any) {
+      setError("Upload failed. Try again.");
+      console.error("Avatar upload error:", err);
+    } finally {
+      setIsValidating(false);
+    }
   };
 
   const nextStep = () => {

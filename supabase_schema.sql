@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   subscription_status TEXT DEFAULT 'trialing',
   trial_end_date TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days',
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    asaas_customer_id TEXT
 );
 
 -- ADD MISSING COLUMNS IF THEY DON'T EXIST (For users with existing tables)
@@ -29,6 +30,7 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'trialing';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS trial_end_date TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS asaas_customer_id TEXT;
 
 -- 3. ENSURE CHATS TABLE EXISTS (From image)
 CREATE TABLE IF NOT EXISTS public.chats (

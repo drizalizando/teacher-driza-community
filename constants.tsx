@@ -9,22 +9,6 @@ export const COLORS = {
   accent: 'coral-600',
 };
 
-// Adjusted MOCK_USER to reflect a newly registered user without profile data
-export const MOCK_USER = {
-  id: 'user-123',
-  email: 'student@example.com',
-  name: '', // Empty to trigger onboarding
-  handle: '', // Empty to trigger onboarding
-  avatarUrl: '',
-  subscription: {
-    status: 'trialing' as const,
-    trialEndDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString(),
-    nextBillingDate: null,
-    isTrialActive: true,
-    isSubscriptionActive: false,
-    isAccessBlocked: false,
-  }
-};
 
 export const Icons = {
   Users: () => (

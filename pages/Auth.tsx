@@ -23,18 +23,15 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onSignup }) => {
     setIsLoading(true);
     try {
       if (!isLogin) {
+        // SIGNUP FLOW
         if (formData.password !== formData.confirmPassword) {
           alert("Passwords do not match.");
+          setIsLoading(false);
           return;
         }
-        const user = await api.auth.signUp(formData.email, formData.password);
-        if (user) {
-          onLogin(user);
-        } else {
-          // Signup successful but might need email verification
-          alert("Check your email for confirmation!");
-          onSignup(formData.email);
-        }
+        await api.auth.signUp(formData.email, formData.password);
+        // Always go to payment after signup, never call onLogin
+        onSignup(formData.email);
       } else {
         const user = await api.auth.signIn(formData.email, formData.password);
         if (user) {
