@@ -101,7 +101,10 @@ const App: React.FC = () => {
     await api.chat.sendMessage(newMessage, channel, user.id);
 
     // AI Trigger Logic
-    const shouldTriggerAi = channel === 'private' || text.toLowerCase().includes('@teacherdriza');
+    const shouldTriggerAi = (
+      channel === 'private' ||
+      text.toLowerCase().includes('@teacherdriza')
+    ) && text.trim().length > 0;
 
     if (shouldTriggerAi) {
       setIsAiTyping(true);
