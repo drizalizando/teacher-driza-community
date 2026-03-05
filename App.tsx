@@ -84,7 +84,7 @@ const App: React.FC = () => {
     };
   }, [step, user?.id]);
 
-  const handleSendMessage = async (text: string, channel: 'public' | 'private') => {
+  const handleSendMessage = async (text: string, channel: 'public' | 'private', audioUrl?: string) => {
     if (!user) return;
 
     const newMessage: Message = {
@@ -92,19 +92,22 @@ const App: React.FC = () => {
       senderId: user.id,
       senderName: user.name,
       content: text,
+      audioUrl: audioUrl,
       timestamp: new Date(),
       type: 'user'
     };
 
-    // Optimistically update local state if real-time is slow
-    // But since we have real-time, we'll just send to DB and let listener handle it
+    // Optimistic update
+    if (channel === 'public') setPublicMessages(prev => [...prev, newMessage]);
+    else setPrivateMessages(prev => [...prev, newMessage]);
+
     await api.chat.sendMessage(newMessage, channel, user.id);
 
     // AI Trigger Logic
     const shouldTriggerAi = (
       channel === 'private' ||
       text.toLowerCase().includes('@teacherdriza')
-    ) && text.trim().length > 0;
+    ) && (text.trim().length > 0 || audioUrl);
 
     if (shouldTriggerAi) {
       setIsAiTyping(true);
@@ -112,15 +115,32 @@ const App: React.FC = () => {
         const history = channel === 'private' ? privateMessages : publicMessages;
         const response = await getDrizaResponse(text, channel === 'private', history);
 
+        let aiAudioUrl: string | undefined;
+        if (channel === 'private') {
+           try {
+             const audioBase64 = await textToSpeech(response.text);
+             if (audioBase64) {
+               aiAudioUrl = `data:audio/mp3;base64,${audioBase64}`;
+             }
+           } catch (ttsErr) {
+             console.error("TTS error:", ttsErr);
+           }
+        }
+
         const aiMessage: Message = {
           id: `temp-ai-${Date.now()}`,
           senderId: DRIZA_BOT_ID,
           senderName: 'Teacher Driza',
           content: response.text,
+          audioUrl: aiAudioUrl,
           timestamp: new Date(),
           isAi: true,
           type: 'teacher'
         };
+
+        // Optimistic AI update
+        if (channel === 'public') setPublicMessages(prev => [...prev, aiMessage]);
+        else setPrivateMessages(prev => [...prev, aiMessage]);
 
         await api.chat.sendMessage(aiMessage, channel, user.id);
       } catch (error) {
@@ -193,8 +213,8 @@ const App: React.FC = () => {
                </div>
             ) : (
               <>
-                {activeTab === 'public' && <ChatWindow title="Community Feed" subtitle="Public Practice" messages={publicMessages} onSendMessage={(txt) => handleSendMessage(txt, 'public')} user={user} isAiTyping={isAiTyping} />}
-                {activeTab === 'private' && <ChatWindow title="My Teacher" subtitle="Private Guidance" messages={privateMessages} onSendMessage={(txt) => handleSendMessage(txt, 'private')} user={user} isAiTyping={isAiTyping} showMic={true} />}
+                {activeTab === 'public' && <ChatWindow title="Community Feed" subtitle="Public Practice" messages={publicMessages} onSendMessage={(txt, audio) => handleSendMessage(txt, 'public', audio)} user={user} isAiTyping={isAiTyping} />}
+                {activeTab === 'private' && <ChatWindow title="My Teacher" subtitle="Private Guidance" messages={privateMessages} onSendMessage={(txt, audio) => handleSendMessage(txt, 'private', audio)} user={user} isAiTyping={isAiTyping} showMic={true} />}
                 {activeTab === 'billing' && <Billing user={user} />}
                 {activeTab === 'settings' && <div className="flex-1 flex items-center justify-center py-10">
                   <div className="max-w-md w-full p-10 bg-white rounded-[2.5rem] border border-pearl-200 shadow-soft text-center">

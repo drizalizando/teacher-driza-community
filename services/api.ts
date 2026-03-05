@@ -158,6 +158,7 @@ export const api = {
         senderId: msg.sender,
         senderName: msg.sender_name || (msg.sender === 'teacher-driza-ai' ? 'Teacher Driza' : 'Student'),
         content: msg.content,
+        audioUrl: msg.audio_url,
         timestamp: new Date(msg.created_at),
         isAi: msg.is_ai,
         type: msg.type
@@ -189,6 +190,7 @@ export const api = {
           sender: message.senderId,
           sender_name: message.senderName,
           content: message.content,
+          audio_url: message.audioUrl,
           is_ai: message.isAi || false,
           type: message.type
         });
@@ -231,6 +233,7 @@ export const api = {
               senderId: msg.sender,
               senderName: msg.sender_name || (msg.sender === 'teacher-driza-ai' ? 'Teacher Driza' : 'Student'),
               content: msg.content,
+              audioUrl: msg.audio_url,
               timestamp: new Date(msg.created_at),
               isAi: msg.is_ai,
               type: msg.type

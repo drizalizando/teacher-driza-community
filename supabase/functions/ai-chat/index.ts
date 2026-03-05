@@ -55,8 +55,8 @@ serve(async (req) => {
         3. NO markdown asterisks.
         4. Promote kindness.`
 
-    // Filtrar e formatar histórico
-    const history = (chatHistory || [])
+    // Filtrar, formatar e colapsar histórico para evitar erros de papéis consecutivos no Gemini
+    const rawHistory = (chatHistory || [])
       .filter((msg: any) =>
         msg.content &&
         msg.content.trim() &&
@@ -65,13 +65,30 @@ serve(async (req) => {
       .map((msg: any) => ({
         role: msg.isAi ? 'model' : 'user',
         parts: [{ text: msg.content }],
-      }))
+      }));
+
+    const collapsedHistory: any[] = [];
+    for (const entry of rawHistory) {
+      if (collapsedHistory.length > 0 && collapsedHistory[collapsedHistory.length - 1].role === entry.role) {
+        collapsedHistory[collapsedHistory.length - 1].parts[0].text += "\n" + entry.parts[0].text;
+      } else {
+        collapsedHistory.push(entry);
+      }
+    }
+
+    // Preparar o payload final garantindo que o último papel seja 'user' se necessário
+    let finalContents = collapsedHistory;
+    if (finalContents.length > 0 && finalContents[finalContents.length - 1].role === 'user') {
+      finalContents[finalContents.length - 1].parts[0].text += "\n" + prompt;
+    } else {
+      finalContents.push({ role: 'user', parts: [{ text: prompt }] });
+    }
 
     const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiApiKey, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [...history, { role: 'user', parts: [{ text: prompt }] }],
+        contents: finalContents,
         systemInstruction: { parts: [{ text: systemInstruction }] },
         generationConfig: {
           temperature: isPrivate ? 0.8 : 0.7,
@@ -80,13 +97,13 @@ serve(async (req) => {
       })
     })
 
+    const data = await response.json()
+
     if (!response.ok) {
-      const errorData = await response.clone().json()
-      console.error('Gemini API error:', errorData)
+      console.error('Gemini API error:', data)
       throw new Error(`Gemini API failed: ${response.status}`)
     }
 
-    const data = await response.json()
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text ||
                  "Keep practicing! I'm here to help. 💪"
 
