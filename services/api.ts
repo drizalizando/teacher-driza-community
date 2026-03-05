@@ -156,12 +156,30 @@ export const api = {
       // 2. Get ONLY last 100 messages (pagination)
       const { data, error } = await supabase
         .from('messages')
-        .select('*')
+        .select('id, chat_id, sender, content, is_ai, type, created_at') // Explicitly select common columns to be resilient
         .eq('chat_id', chat.id)
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      if (error) throw error;
+      if (error) {
+          console.warn("Retrying fetch without specific columns...");
+          const { data: retryData, error: retryErr } = await supabase
+            .from('messages')
+            .select('id, chat_id, sender, content, created_at')
+            .eq('chat_id', chat.id)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+          if (retryErr) throw retryErr;
+          return (retryData || []).reverse().map(msg => ({
+            id: msg.id,
+            senderId: msg.sender,
+            senderName: msg.sender === 'teacher-driza-ai' ? 'Teacher Driza' : 'Student',
+            content: msg.content,
+            timestamp: new Date(msg.created_at),
+            isAi: msg.sender === 'teacher-driza-ai',
+            type: msg.sender === 'teacher-driza-ai' ? 'teacher' : 'user'
+          }));
+      }
 
       // Reverse to show oldest first
       return (data || []).reverse().map(msg => ({
