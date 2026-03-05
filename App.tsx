@@ -65,7 +65,9 @@ const App: React.FC = () => {
     const unsubPublic = api.chat.subscribeToMessages('public', (msg) => {
       setPublicMessages(prev => {
         if (prev.find(m => m.id === msg.id)) return prev;
-        return [...prev, msg];
+        // Reconciliation: remove temporary optimistic message if content matches
+        const filtered = prev.filter(m => !m.id.startsWith('temp-') || m.content !== msg.content);
+        return [...filtered, msg];
       });
     });
 
@@ -74,7 +76,9 @@ const App: React.FC = () => {
     const unsubPrivate = api.chat.subscribeToMessages('private', (msg) => {
       setPrivateMessages(prev => {
         if (prev.find(m => m.id === msg.id)) return prev;
-        return [...prev, msg];
+        // Reconciliation: remove temporary optimistic message if content matches
+        const filtered = prev.filter(m => !m.id.startsWith('temp-') || m.content !== msg.content);
+        return [...filtered, msg];
       });
     }, user.id);
 
@@ -146,7 +150,11 @@ const App: React.FC = () => {
         if (channel === 'public') setPublicMessages(prev => [...prev, aiMessage]);
         else setPrivateMessages(prev => [...prev, aiMessage]);
 
-        await api.chat.sendMessage(aiMessage, channel, user.id);
+        try {
+          await api.chat.sendMessage(aiMessage, channel, user.id);
+        } catch (sendErr) {
+          console.error("Failed to persist AI message:", sendErr);
+        }
       } catch (error) {
         console.error("AI Response error:", error);
       } finally {
