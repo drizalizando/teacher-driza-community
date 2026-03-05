@@ -89,10 +89,10 @@ serve(async (req) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: finalContents,
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        generationConfig: {
+        system_instruction: { parts: [{ text: systemInstruction }] },
+        generation_config: {
           temperature: isPrivate ? 0.8 : 0.7,
-          maxOutputTokens: 500
+          max_output_tokens: 500
         }
       })
     })
