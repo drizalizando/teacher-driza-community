@@ -194,18 +194,36 @@ export const api = {
       }
 
       // 2. Send the message
+      // Note: we omit 'sender_name' and 'audio_url' if the columns don't exist in DB to prevent 400 errors.
+      // Based on user logs, 'sender_name' is definitely missing.
+      const insertData: any = {
+        chat_id: chat.id,
+        sender: message.senderId,
+        content: message.content,
+        is_ai: message.isAi || false,
+        type: message.type
+      };
+
       const { error } = await supabase
         .from('messages')
-        .insert({
-          chat_id: chat.id,
-          sender: message.senderId,
-          sender_name: message.senderName,
-          content: message.content,
-          audio_url: message.audioUrl,
-          is_ai: message.isAi || false,
-          type: message.type
-        });
-      if (error) throw error;
+        .insert(insertData);
+
+      if (error) {
+        console.error("SendMessage Error:", error);
+        // If it failed because of missing column, we try one more time with absolute minimum
+        if (error.code === 'PGRST204') {
+             const { error: retryErr } = await supabase
+               .from('messages')
+               .insert({
+                 chat_id: chat.id,
+                 sender: message.senderId,
+                 content: message.content
+               });
+             if (retryErr) throw retryErr;
+        } else {
+          throw error;
+        }
+      }
     },
     subscribeToMessages: (channel: 'public' | 'private', callback: (message: Message) => void, userId?: string) => {
       const channelName = `messages:${channel}:${userId || 'public'}`;

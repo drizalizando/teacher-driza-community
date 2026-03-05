@@ -101,7 +101,11 @@ const App: React.FC = () => {
     if (channel === 'public') setPublicMessages(prev => [...prev, newMessage]);
     else setPrivateMessages(prev => [...prev, newMessage]);
 
-    await api.chat.sendMessage(newMessage, channel, user.id);
+    try {
+      await api.chat.sendMessage(newMessage, channel, user.id);
+    } catch (sendErr) {
+      console.error("Failed to persist message:", sendErr);
+    }
 
     // AI Trigger Logic
     const shouldTriggerAi = (

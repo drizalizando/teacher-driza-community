@@ -136,7 +136,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, onSendMessage, user, 
                 </div>
                 <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
                   <span className="text-[7px] sm:text-[9px] text-gray-400 mb-1 font-black uppercase tracking-widest px-1">
-                    {isAi ? 'Teacher Driza' : msg.senderName} • {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {isAi ? 'Teacher Driza' : (msg.senderName || 'Student')} • {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                   <div className={`px-4 py-3 sm:px-6 sm:py-4 rounded-2xl sm:rounded-[1.8rem] text-[14px] sm:text-[16px] font-bold leading-relaxed shadow-sm ${
                     isOwn ? 'bg-coral-500 text-white rounded-tr-none' : 'bg-white text-gray-950 border border-pearl-100 rounded-tl-none'
