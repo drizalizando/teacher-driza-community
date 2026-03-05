@@ -39,7 +39,7 @@ const MessageAudioPlayer: React.FC<{ url: string; isOwn: boolean }> = ({ url, is
 
 interface ChatWindowProps {
   messages: Message[];
-  onSendMessage: (text: string, audioUrl?: string) => void;
+  onSendMessage: (text: string) => void;
   user: User;
   title: string;
   subtitle: string;
@@ -49,9 +49,6 @@ interface ChatWindowProps {
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ messages, onSendMessage, user, title, subtitle, isAiTyping, showMic = false }) => {
   const [inputText, setInputText] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -65,43 +62,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, onSendMessage, user, 
     if (!inputText.trim()) return;
     onSendMessage(inputText);
     setInputText('');
-  };
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(chunksRef.current, { type: 'audio/mp3' });
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = () => {
-          const base64Audio = reader.result as string;
-          onSendMessage("Audio message 🎙️", base64Audio);
-        };
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (err) {
-      console.error("Error starting recording:", err);
-      alert("Could not access microphone.");
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
   };
 
   return (
@@ -136,7 +96,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, onSendMessage, user, 
                 </div>
                 <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
                   <span className="text-[7px] sm:text-[9px] text-gray-400 mb-1 font-black uppercase tracking-widest px-1">
-                    {isAi ? 'Teacher Driza' : (msg.senderName || 'Student')} • {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {isAi ? 'Teacher Driza' : msg.senderName} • {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                   <div className={`px-4 py-3 sm:px-6 sm:py-4 rounded-2xl sm:rounded-[1.8rem] text-[14px] sm:text-[16px] font-bold leading-relaxed shadow-sm ${
                     isOwn ? 'bg-coral-500 text-white rounded-tr-none' : 'bg-white text-gray-950 border border-pearl-100 rounded-tl-none'
@@ -167,18 +127,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, onSendMessage, user, 
       <div className="p-3 sm:p-6 bg-white border-t border-pearl-100 shrink-0 sticky bottom-0 z-30 mb-safe">
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto flex gap-2 sm:gap-3 items-end">
           {showMic && (
-            <button
-              type="button"
-              onMouseDown={startRecording}
-              onMouseUp={stopRecording}
-              onTouchStart={startRecording}
-              onTouchEnd={stopRecording}
-              className={`w-11 h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all border active:scale-90 shrink-0 ${
-                isRecording
-                  ? 'bg-red-500 text-white border-red-600 animate-pulse'
-                  : 'bg-pearl-50 text-gray-400 border-pearl-100 hover:bg-coral-50 hover:text-coral-500'
-              }`}
-            >
+            <button type="button" className="w-11 h-11 sm:w-14 sm:h-14 bg-pearl-50 text-gray-400 rounded-xl sm:rounded-2xl flex items-center justify-center hover:bg-coral-50 hover:text-coral-500 transition-all border border-pearl-100 active:scale-90 shrink-0">
               <Icons.Mic />
             </button>
           )}

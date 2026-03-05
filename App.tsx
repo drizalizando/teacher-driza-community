@@ -65,9 +65,7 @@ const App: React.FC = () => {
     const unsubPublic = api.chat.subscribeToMessages('public', (msg) => {
       setPublicMessages(prev => {
         if (prev.find(m => m.id === msg.id)) return prev;
-        // Reconciliation: remove temporary optimistic message if content and sender matches
-        const filtered = prev.filter(m => !m.id.startsWith('temp-') || (m.content !== msg.content || m.senderId !== msg.senderId));
-        return [...filtered, msg];
+        return [...prev, msg];
       });
     });
 
@@ -76,9 +74,7 @@ const App: React.FC = () => {
     const unsubPrivate = api.chat.subscribeToMessages('private', (msg) => {
       setPrivateMessages(prev => {
         if (prev.find(m => m.id === msg.id)) return prev;
-        // Reconciliation: remove temporary optimistic message if content and sender matches
-        const filtered = prev.filter(m => !m.id.startsWith('temp-') || (m.content !== msg.content || m.senderId !== msg.senderId));
-        return [...filtered, msg];
+        return [...prev, msg];
       });
     }, user.id);
 
@@ -88,7 +84,7 @@ const App: React.FC = () => {
     };
   }, [step, user?.id]);
 
-  const handleSendMessage = async (text: string, channel: 'public' | 'private', audioUrl?: string) => {
+  const handleSendMessage = async (text: string, channel: 'public' | 'private') => {
     if (!user) return;
 
     const newMessage: Message = {
@@ -96,26 +92,19 @@ const App: React.FC = () => {
       senderId: user.id,
       senderName: user.name,
       content: text,
-      audioUrl: audioUrl,
       timestamp: new Date(),
       type: 'user'
     };
 
-    // Optimistic update
-    if (channel === 'public') setPublicMessages(prev => [...prev, newMessage]);
-    else setPrivateMessages(prev => [...prev, newMessage]);
-
-    try {
-      await api.chat.sendMessage(newMessage, channel, user.id);
-    } catch (sendErr) {
-      console.error("Failed to persist message:", sendErr);
-    }
+    // Optimistically update local state if real-time is slow
+    // But since we have real-time, we'll just send to DB and let listener handle it
+    await api.chat.sendMessage(newMessage, channel, user.id);
 
     // AI Trigger Logic
     const shouldTriggerAi = (
       channel === 'private' ||
       text.toLowerCase().includes('@teacherdriza')
-    ) && (text.trim().length > 0 || audioUrl);
+    ) && text.trim().length > 0;
 
     if (shouldTriggerAi) {
       setIsAiTyping(true);
@@ -123,38 +112,17 @@ const App: React.FC = () => {
         const history = channel === 'private' ? privateMessages : publicMessages;
         const response = await getDrizaResponse(text, channel === 'private', history);
 
-        let aiAudioUrl: string | undefined;
-        if (channel === 'private') {
-           try {
-             const audioBase64 = await textToSpeech(response.text);
-             if (audioBase64) {
-               aiAudioUrl = `data:audio/mp3;base64,${audioBase64}`;
-             }
-           } catch (ttsErr) {
-             console.error("TTS error:", ttsErr);
-           }
-        }
-
         const aiMessage: Message = {
           id: `temp-ai-${Date.now()}`,
           senderId: DRIZA_BOT_ID,
           senderName: 'Teacher Driza',
           content: response.text,
-          audioUrl: aiAudioUrl,
           timestamp: new Date(),
           isAi: true,
           type: 'teacher'
         };
 
-        // Optimistic AI update
-        if (channel === 'public') setPublicMessages(prev => [...prev, aiMessage]);
-        else setPrivateMessages(prev => [...prev, aiMessage]);
-
-        try {
-          await api.chat.sendMessage(aiMessage, channel, user.id);
-        } catch (sendErr) {
-          console.error("Failed to persist AI message:", sendErr);
-        }
+        await api.chat.sendMessage(aiMessage, channel, user.id);
       } catch (error) {
         console.error("AI Response error:", error);
       } finally {
@@ -225,8 +193,8 @@ const App: React.FC = () => {
                </div>
             ) : (
               <>
-                {activeTab === 'public' && <ChatWindow title="Community Feed" subtitle="Public Practice" messages={publicMessages} onSendMessage={(txt, audio) => handleSendMessage(txt, 'public', audio)} user={user} isAiTyping={isAiTyping} />}
-                {activeTab === 'private' && <ChatWindow title="My Teacher" subtitle="Private Guidance" messages={privateMessages} onSendMessage={(txt, audio) => handleSendMessage(txt, 'private', audio)} user={user} isAiTyping={isAiTyping} showMic={true} />}
+                {activeTab === 'public' && <ChatWindow title="Community Feed" subtitle="Public Practice" messages={publicMessages} onSendMessage={(txt) => handleSendMessage(txt, 'public')} user={user} isAiTyping={isAiTyping} />}
+                {activeTab === 'private' && <ChatWindow title="My Teacher" subtitle="Private Guidance" messages={privateMessages} onSendMessage={(txt) => handleSendMessage(txt, 'private')} user={user} isAiTyping={isAiTyping} showMic={true} />}
                 {activeTab === 'billing' && <Billing user={user} />}
                 {activeTab === 'settings' && <div className="flex-1 flex items-center justify-center py-10">
                   <div className="max-w-md w-full p-10 bg-white rounded-[2.5rem] border border-pearl-200 shadow-soft text-center">

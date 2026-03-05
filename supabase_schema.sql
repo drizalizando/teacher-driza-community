@@ -51,14 +51,9 @@ CREATE TABLE IF NOT EXISTS public.messages (
   sender_name TEXT, -- Added for UI convenience
   content TEXT,
   is_ai BOOLEAN DEFAULT FALSE,
-  audio_url TEXT,
   type TEXT DEFAULT 'user', -- 'user', 'teacher', 'system'
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
--- Ensure columns exist for existing tables
-ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS sender_name TEXT;
-ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS audio_url TEXT;
 
 -- 5. ENABLE ROW LEVEL SECURITY (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;

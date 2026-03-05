@@ -132,7 +132,7 @@ export const api = {
   chat: {
     getHistory: async (channel: 'public' | 'private', userId?: string, limit: number = 100): Promise<Message[]> => {
       // 1. Get or Create the Chat
-      let { data: chat, error: chatErr } = await supabase
+      const { data: chat, error: chatErr } = await supabase
         .from('chats')
         .select('id')
         .eq('type', channel)
@@ -140,46 +140,17 @@ export const api = {
         .maybeSingle();
 
       if (chatErr) throw chatErr;
-
-      // Auto-create private chat if it doesn't exist to facilitate subscriptions
-      if (!chat && channel === 'private' && userId) {
-        const { data: newChat, error: createErr } = await supabase
-          .from('chats')
-          .insert({ user_id: userId, type: 'private' })
-          .select()
-          .single();
-        if (!createErr) chat = newChat;
-      }
-
       if (!chat) return [];
 
       // 2. Get ONLY last 100 messages (pagination)
       const { data, error } = await supabase
         .from('messages')
-        .select('id, chat_id, sender, content, is_ai, type, created_at') // Explicitly select common columns to be resilient
+        .select('*')
         .eq('chat_id', chat.id)
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      if (error) {
-          console.warn("Retrying fetch without specific columns...");
-          const { data: retryData, error: retryErr } = await supabase
-            .from('messages')
-            .select('id, chat_id, sender, content, created_at')
-            .eq('chat_id', chat.id)
-            .order('created_at', { ascending: false })
-            .limit(limit);
-          if (retryErr) throw retryErr;
-          return (retryData || []).reverse().map(msg => ({
-            id: msg.id,
-            senderId: msg.sender,
-            senderName: msg.sender === 'teacher-driza-ai' ? 'Teacher Driza' : 'Student',
-            content: msg.content,
-            timestamp: new Date(msg.created_at),
-            isAi: msg.sender === 'teacher-driza-ai',
-            type: msg.sender === 'teacher-driza-ai' ? 'teacher' : 'user'
-          }));
-      }
+      if (error) throw error;
 
       // Reverse to show oldest first
       return (data || []).reverse().map(msg => ({
@@ -187,7 +158,6 @@ export const api = {
         senderId: msg.sender,
         senderName: msg.sender_name || (msg.sender === 'teacher-driza-ai' ? 'Teacher Driza' : 'Student'),
         content: msg.content,
-        audioUrl: msg.audio_url,
         timestamp: new Date(msg.created_at),
         isAi: msg.is_ai,
         type: msg.type
@@ -212,44 +182,23 @@ export const api = {
       }
 
       // 2. Send the message
-      // Note: we omit 'sender_name' and 'audio_url' if the columns don't exist in DB to prevent 400 errors.
-      // Based on user logs, 'sender_name' is definitely missing.
-      const insertData: any = {
-        chat_id: chat.id,
-        sender: message.senderId,
-        content: message.content,
-        is_ai: message.isAi || false,
-        type: message.type
-      };
-
       const { error } = await supabase
         .from('messages')
-        .insert(insertData);
-
-      if (error) {
-        console.error("SendMessage Error:", error);
-        // If it failed because of missing column, we try one more time with absolute minimum
-        if (error.code === 'PGRST204') {
-             const { error: retryErr } = await supabase
-               .from('messages')
-               .insert({
-                 chat_id: chat.id,
-                 sender: message.senderId,
-                 content: message.content
-               });
-             if (retryErr) throw retryErr;
-        } else {
-          throw error;
-        }
-      }
+        .insert({
+          chat_id: chat.id,
+          sender: message.senderId,
+          sender_name: message.senderName,
+          content: message.content,
+          is_ai: message.isAi || false,
+          type: message.type
+        });
+      if (error) throw error;
     },
     subscribeToMessages: (channel: 'public' | 'private', callback: (message: Message) => void, userId?: string) => {
       const channelName = `messages:${channel}:${userId || 'public'}`;
-      let subscription: any;
-      let isUnsubscribed = false;
 
       // First, get the chat_id for filtering
-      const setupSubscription = async () => {
+      const getChatId = async () => {
         const { data: chat } = await supabase
           .from('chats')
           .select('id')
@@ -257,12 +206,16 @@ export const api = {
           .eq(channel === 'private' ? 'user_id' : 'type', channel === 'private' ? userId : 'public')
           .maybeSingle();
 
-        if (!chat?.id) {
-          console.warn(`No chat found for ${channel}, cannot subscribe.`);
+        return chat?.id;
+      };
+
+      let subscription: any;
+
+      getChatId().then(chatId => {
+        if (!chatId) {
+          console.warn(`No chat found for ${channel}`);
           return;
         }
-
-        if (isUnsubscribed) return;
 
         subscription = supabase
           .channel(channelName)
@@ -270,7 +223,7 @@ export const api = {
             event: 'INSERT',
             schema: 'public',
             table: 'messages',
-            filter: `chat_id=eq.${chat.id}`
+            filter: `chat_id=eq.${chatId}` // CRITICAL: Filter at database level
           }, (payload) => {
             const msg = payload.new;
             callback({
@@ -278,7 +231,6 @@ export const api = {
               senderId: msg.sender,
               senderName: msg.sender_name || (msg.sender === 'teacher-driza-ai' ? 'Teacher Driza' : 'Student'),
               content: msg.content,
-              audioUrl: msg.audio_url,
               timestamp: new Date(msg.created_at),
               isAi: msg.is_ai,
               type: msg.type
@@ -286,15 +238,12 @@ export const api = {
           })
           .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-              console.log(`Subscribed to ${channel} messages (chat_id: ${chat.id})`);
+              console.log(`Subscribed to ${channel} messages (chat_id: ${chatId})`);
             }
           });
-      };
-
-      setupSubscription();
+      });
 
       return () => {
-        isUnsubscribed = true;
         console.log(`Unsubscribing from ${channel} messages`);
         if (subscription) {
           supabase.removeChannel(subscription);
