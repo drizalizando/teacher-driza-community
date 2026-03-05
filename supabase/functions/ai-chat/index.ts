@@ -81,7 +81,7 @@ serve(async (req) => {
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
+      const errorData = await response.clone().json()
       console.error('Gemini API error:', errorData)
       throw new Error(`Gemini API failed: ${response.status}`)
     }
