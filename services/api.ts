@@ -132,7 +132,7 @@ export const api = {
   chat: {
     getHistory: async (channel: 'public' | 'private', userId?: string, limit: number = 100): Promise<Message[]> => {
       // 1. Get or Create the Chat
-      const { data: chat, error: chatErr } = await supabase
+      let { data: chat, error: chatErr } = await supabase
         .from('chats')
         .select('id')
         .eq('type', channel)
@@ -140,6 +140,17 @@ export const api = {
         .maybeSingle();
 
       if (chatErr) throw chatErr;
+
+      // Auto-create private chat if it doesn't exist to facilitate subscriptions
+      if (!chat && channel === 'private' && userId) {
+        const { data: newChat, error: createErr } = await supabase
+          .from('chats')
+          .insert({ user_id: userId, type: 'private' })
+          .select()
+          .single();
+        if (!createErr) chat = newChat;
+      }
+
       if (!chat) return [];
 
       // 2. Get ONLY last 100 messages (pagination)
