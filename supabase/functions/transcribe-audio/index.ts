@@ -12,8 +12,19 @@ serve(async (req) => {
   }
 
   try {
-    const { imageBase64 } = await req.json()
+    const { audioBase64 } = await req.json()
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
+
+    if (!geminiApiKey) {
+      throw new Error('GEMINI_API_KEY not configured')
+    }
+
+    if (!audioBase64) {
+      throw new Error('Missing audio data')
+    }
+
+    // Clean base64 if it has prefix
+    const base64Data = audioBase64.includes(',') ? audioBase64.split(',')[1] : audioBase64
 
     const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiApiKey, {
       method: 'POST',
@@ -21,25 +32,31 @@ serve(async (req) => {
       body: JSON.stringify({
         contents: [{
           parts: [
-            { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
-            { text: "Safety check for a learning community profile picture. Safe or Unsafe? Output one word only." }
+            { inlineData: { mimeType: 'audio/mp3', data: base64Data } },
+            { text: "Transcribe this audio message. Output the transcription only, no extra text." }
           ]
         }]
       })
     })
 
     const data = await response.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toUpperCase()
-    const isSafe = text === 'SAFE'
+
+    if (!response.ok) {
+      console.error('Gemini API error:', data)
+      throw new Error(`Gemini API failed: ${response.status}`)
+    }
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ""
 
     return new Response(
-      JSON.stringify({ isSafe }),
+      JSON.stringify({ text }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
+    console.error('Transcription error:', error)
     return new Response(
-      JSON.stringify({ isSafe: true }), // Fail open
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: error.message, text: "" }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }
 })
