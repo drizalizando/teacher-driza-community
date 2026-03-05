@@ -65,8 +65,8 @@ const App: React.FC = () => {
     const unsubPublic = api.chat.subscribeToMessages('public', (msg) => {
       setPublicMessages(prev => {
         if (prev.find(m => m.id === msg.id)) return prev;
-        // Reconciliation: remove temporary optimistic message if content matches
-        const filtered = prev.filter(m => !m.id.startsWith('temp-') || m.content !== msg.content);
+        // Reconciliation: remove temporary optimistic message if content and sender matches
+        const filtered = prev.filter(m => !m.id.startsWith('temp-') || (m.content !== msg.content || m.senderId !== msg.senderId));
         return [...filtered, msg];
       });
     });
@@ -76,8 +76,8 @@ const App: React.FC = () => {
     const unsubPrivate = api.chat.subscribeToMessages('private', (msg) => {
       setPrivateMessages(prev => {
         if (prev.find(m => m.id === msg.id)) return prev;
-        // Reconciliation: remove temporary optimistic message if content matches
-        const filtered = prev.filter(m => !m.id.startsWith('temp-') || m.content !== msg.content);
+        // Reconciliation: remove temporary optimistic message if content and sender matches
+        const filtered = prev.filter(m => !m.id.startsWith('temp-') || (m.content !== msg.content || m.senderId !== msg.senderId));
         return [...filtered, msg];
       });
     }, user.id);

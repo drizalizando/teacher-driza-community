@@ -245,9 +245,11 @@ export const api = {
     },
     subscribeToMessages: (channel: 'public' | 'private', callback: (message: Message) => void, userId?: string) => {
       const channelName = `messages:${channel}:${userId || 'public'}`;
+      let subscription: any;
+      let isUnsubscribed = false;
 
       // First, get the chat_id for filtering
-      const getChatId = async () => {
+      const setupSubscription = async () => {
         const { data: chat } = await supabase
           .from('chats')
           .select('id')
@@ -255,16 +257,12 @@ export const api = {
           .eq(channel === 'private' ? 'user_id' : 'type', channel === 'private' ? userId : 'public')
           .maybeSingle();
 
-        return chat?.id;
-      };
-
-      let subscription: any;
-
-      getChatId().then(chatId => {
-        if (!chatId) {
-          console.warn(`No chat found for ${channel}`);
+        if (!chat?.id) {
+          console.warn(`No chat found for ${channel}, cannot subscribe.`);
           return;
         }
+
+        if (isUnsubscribed) return;
 
         subscription = supabase
           .channel(channelName)
@@ -272,7 +270,7 @@ export const api = {
             event: 'INSERT',
             schema: 'public',
             table: 'messages',
-            filter: `chat_id=eq.${chatId}` // CRITICAL: Filter at database level
+            filter: `chat_id=eq.${chat.id}`
           }, (payload) => {
             const msg = payload.new;
             callback({
@@ -288,12 +286,15 @@ export const api = {
           })
           .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-              console.log(`Subscribed to ${channel} messages (chat_id: ${chatId})`);
+              console.log(`Subscribed to ${channel} messages (chat_id: ${chat.id})`);
             }
           });
-      });
+      };
+
+      setupSubscription();
 
       return () => {
+        isUnsubscribed = true;
         console.log(`Unsubscribing from ${channel} messages`);
         if (subscription) {
           supabase.removeChannel(subscription);
