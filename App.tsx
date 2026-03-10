@@ -120,8 +120,21 @@ const App: React.FC = () => {
     if (shouldTriggerAi) {
       setIsAiTyping(true);
       try {
+        let processedText = text;
+        if (audioUrl) {
+          try {
+            const transcription = await transcribeAudio(audioUrl);
+            if (transcription) {
+              processedText = transcription;
+              console.log("Transcribed audio:", transcription);
+            }
+          } catch (transcribeErr) {
+            console.error("Transcription error:", transcribeErr);
+          }
+        }
+
         const history = channel === 'private' ? privateMessages : publicMessages;
-        const response = await getDrizaResponse(text, channel === 'private', history);
+        const response = await getDrizaResponse(processedText, channel === 'private', history, user.level);
 
         let aiAudioUrl: string | undefined;
         if (channel === 'private') {

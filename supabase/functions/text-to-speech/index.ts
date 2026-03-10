@@ -1,12 +1,10 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://teacher-driza-community.vercel.app',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { status: 200, headers: corsHeaders })
   }
@@ -19,13 +17,37 @@ serve(async (req) => {
       throw new Error('GEMINI_API_KEY not configured')
     }
 
-    // Usando a API do Gemini para converter texto em fala (via representação de texto descritiva ou similar)
-    // Nota: O Gemini 1.5 Flash não gera áudio MP3 diretamente via REST de forma simples como texto.
-    // Como solução de contorno para o protótipo, retornamos null ou uma mensagem de erro controlada.
-    // Para um sistema real, integraríamos com Google Cloud TTS.
+    // To implement functional TTS, we recommend using Google Cloud Text-to-Speech.
+    // Ensure you have the 'GOOGLE_CLOUD_API_KEY' or service account configured in Supabase secrets.
+    // Below is a structural implementation that uses Google TTS if an API key is present.
+
+    const googleApiKey = Deno.env.get('GOOGLE_CLOUD_API_KEY') || geminiApiKey; // Fallback to Gemini key if it's a restricted-but-capable API key
+
+    const ttsResponse = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${googleApiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: { text },
+        voice: { languageCode: 'en-US', name: 'en-US-Neural2-F' },
+        audioConfig: { audioEncoding: 'MP3' }
+      })
+    })
+
+    const ttsData = await ttsResponse.json()
+
+    if (!ttsResponse.ok) {
+      console.warn('TTS API warning (might need separate Google Cloud TTS setup):', ttsData)
+      return new Response(
+        JSON.stringify({
+          audioBase64: null,
+          message: "TTS requires active Google Cloud Text-to-Speech API. Please check your API key permissions."
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     return new Response(
-      JSON.stringify({ audioBase64: null, message: "TTS requires Google Cloud integration" }),
+      JSON.stringify({ audioBase64: ttsData.audioContent }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {

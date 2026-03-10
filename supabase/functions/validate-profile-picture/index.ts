@@ -1,12 +1,10 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://teacher-driza-community.vercel.app',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { status: 200, headers: corsHeaders })
   }
@@ -21,8 +19,8 @@ serve(async (req) => {
       body: JSON.stringify({
         contents: [{
           parts: [
-            { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
-            { text: "Safety check for a learning community profile picture. Safe or Unsafe? Output one word only." }
+            { inline_data: { mime_type: 'image/jpeg', data: imageBase64 } },
+            { text: "Safety check for a learning community profile picture. Does it contain inappropriate content, nudity, or violence? Safe or Unsafe? Output one word only: SAFE or UNSAFE." }
           ]
         }]
       })

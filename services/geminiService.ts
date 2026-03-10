@@ -12,13 +12,14 @@ export const validateProfilePicture = async (imageBase64: string) => {
   }
 };
 
-export const getDrizaResponse = async (userPrompt: string, isPrivate: boolean, chatHistory: any[]) => {
+export const getDrizaResponse = async (userPrompt: string, isPrivate: boolean, chatHistory: any[], level?: string) => {
   try {
     const { data, error } = await supabase.functions.invoke('ai-chat', {
       body: {
         prompt: userPrompt,
         isPrivate,
-        chatHistory: chatHistory.slice(-10) // Send only last 10 messages to reduce payload
+        chatHistory: chatHistory.slice(-10), // Send only last 10 messages to reduce payload
+        level
       }
     });
 

@@ -29,6 +29,7 @@ export const api = {
         name: profile?.full_name || '', // Map full_name from DB to 'name' in frontend
         handle: profile?.handle || '',
         avatarUrl: profile?.avatar_url || null,
+        level: profile?.level || 'intermediate',
         subscription: {
           status: status,
           trialEndDate: profile?.trial_end_date || null,
@@ -61,6 +62,7 @@ export const api = {
           email: data.user.email || '',
           name: '',
           handle: '',
+          level: 'intermediate',
           subscription: { status: 'trialing', trialEndDate: '', nextBillingDate: null, isTrialActive: true, isSubscriptionActive: true, isAccessBlocked: false }
         };
       }
@@ -94,6 +96,7 @@ export const api = {
           email: data.user.email || '',
           name: '',
           handle: '',
+          level: 'intermediate',
           subscription: { status: 'trialing', trialEndDate: '', nextBillingDate: null, isTrialActive: true, isSubscriptionActive: true, isAccessBlocked: false }
         };
       }
@@ -111,6 +114,7 @@ export const api = {
           full_name: data.name || '',
           handle: data.handle || '',
           avatar_url: data.avatarUrl || null,
+          level: data.level || 'intermediate',
           updated_at: new Date().toISOString()
         });
       if (error) {
