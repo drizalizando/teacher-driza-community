@@ -16,6 +16,7 @@ export interface User {
   name: string;
   handle: string;
   avatarUrl?: string | null;
+  level: string;
   subscription: UserSubscription;
   createdAt?: string;
 }
