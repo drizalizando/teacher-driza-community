@@ -44,13 +44,41 @@ export const transcribeAudio = async (audioBase64: string) => {
 };
 
 export const textToSpeech = async (text: string) => {
-  try {
-    const { data, error } = await supabase.functions.invoke('text-to-speech', {
-      body: { text }
-    });
-    if (error) throw error;
-    return data?.audioBase64 || null;
-  } catch (error) {
-    return null;
+  // Deprecated: No longer using Edge Function to avoid Google Cloud billing.
+  // Frontend now uses window.speechSynthesis for zero-cost TTS.
+  return null;
+};
+
+/**
+ * Browser-native Text-to-Speech using Web Speech API (window.speechSynthesis).
+ * Zero-cost, immediate playback, no API keys or billing required.
+ */
+export const speakText = (text: string) => {
+  if (!('speechSynthesis' in window)) {
+    console.warn("Speech synthesis not supported in this browser.");
+    return;
   }
+
+  // Cancel any ongoing speech
+  window.speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+
+  // Configure voice (Teacher Driza: warm, supportive English teacher)
+  utterance.lang = 'en-US';
+  utterance.rate = 0.9; // Slightly slower for clarity
+  utterance.pitch = 1.1; // Friendly tone
+
+  // Attempt to find a good female English voice
+  const voices = window.speechSynthesis.getVoices();
+  const femaleVoice = voices.find(v =>
+    (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('google') || v.name.toLowerCase().includes('samantha')) &&
+    v.lang.startsWith('en')
+  );
+
+  if (femaleVoice) {
+    utterance.voice = femaleVoice;
+  }
+
+  window.speechSynthesis.speak(utterance);
 };

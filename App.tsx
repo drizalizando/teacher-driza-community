@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, Message } from './types';
 import { DRIZA_BOT_ID, Icons } from './constants';
-import { getDrizaResponse, transcribeAudio, textToSpeech } from './services/geminiService';
+import { getDrizaResponse, transcribeAudio, speakText } from './services/geminiService';
 import { api } from './services/api';
 import Sidebar from './components/Sidebar';
 import BottomNav from './components/BottomNav';
@@ -136,17 +136,12 @@ const App: React.FC = () => {
         const history = channel === 'private' ? privateMessages : publicMessages;
         const response = await getDrizaResponse(processedText, channel === 'private', history, user.level);
 
-        let aiAudioUrl: string | undefined;
+        // Zero-cost Browser TTS automatically triggered in private chat
         if (channel === 'private') {
-           try {
-             const audioBase64 = await textToSpeech(response.text);
-             if (audioBase64) {
-               aiAudioUrl = `data:audio/mp3;base64,${audioBase64}`;
-             }
-           } catch (ttsErr) {
-             console.error("TTS error:", ttsErr);
-           }
+           speakText(response.text);
         }
+
+        let aiAudioUrl: string | undefined;
 
         const aiMessage: Message = {
           id: `temp-ai-${Date.now()}`,

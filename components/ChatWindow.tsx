@@ -2,22 +2,31 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Message, User } from '../types';
 import { Icons, DRIZA_BOT_ID } from '../constants';
+import { speakText } from '../services/geminiService';
 
-const MessageAudioPlayer: React.FC<{ url: string; isOwn: boolean }> = ({ url, isOwn }) => {
+const MessageAudioPlayer: React.FC<{ url?: string; isOwn: boolean; content?: string }> = ({ url, isOwn, content }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    const audio = new Audio(url);
-    audioRef.current = audio;
-    audio.onended = () => setIsPlaying(false);
-    return () => audio.pause();
+    if (url) {
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => setIsPlaying(false);
+    }
+    return () => audioRef.current?.pause();
   }, [url]);
 
   const togglePlay = () => {
-    if (!audioRef.current) return;
-    isPlaying ? audioRef.current.pause() : audioRef.current.play();
-    setIsPlaying(!isPlaying);
+    if (url && audioRef.current) {
+      isPlaying ? audioRef.current.pause() : audioRef.current.play();
+      setIsPlaying(!isPlaying);
+    } else if (content && !isOwn) {
+      // For Teacher Driza (non-own) messages without audio URL, use browser-native TTS
+      speakText(content);
+      setIsPlaying(true);
+      setTimeout(() => setIsPlaying(false), 2000); // Simple UI feedback for speech start
+    }
   };
 
   return (
@@ -142,7 +151,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, onSendMessage, user, 
                     isOwn ? 'bg-coral-500 text-white rounded-tr-none' : 'bg-white text-gray-950 border border-pearl-100 rounded-tl-none'
                   }`}>
                     {msg.content}
-                    {msg.audioUrl && <MessageAudioPlayer url={msg.audioUrl} isOwn={isOwn} />}
+                    {(msg.audioUrl || (isAi && !isOwn)) && (
+                      <MessageAudioPlayer
+                        url={msg.audioUrl}
+                        isOwn={isOwn}
+                        content={msg.content}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
