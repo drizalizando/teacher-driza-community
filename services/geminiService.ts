@@ -64,14 +64,17 @@ export const speakText = (text: string) => {
 
   const utterance = new SpeechSynthesisUtterance(text);
 
-  // Configure voice (Teacher Driza: warm, supportive English teacher)
+  // Configure voice (Teacher Driza: warm, supportive, calm English teacher)
   utterance.lang = 'en-US';
-  utterance.rate = 0.9; // Slightly slower for clarity
-  utterance.pitch = 1.1; // Friendly tone
+  utterance.rate = 0.85; // Slower and calmer
+  utterance.pitch = 0.95; // Slightly deeper, more natural and calm female tone
 
   // Attempt to find a good female English voice
   const voices = window.speechSynthesis.getVoices();
   const femaleVoice = voices.find(v =>
+    (v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('neural') || v.name.toLowerCase().includes('premium')) &&
+    v.lang.startsWith('en') && (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('samantha') || v.name.toLowerCase().includes('victoria'))
+  ) || voices.find(v =>
     (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('google') || v.name.toLowerCase().includes('samantha')) &&
     v.lang.startsWith('en')
   );
